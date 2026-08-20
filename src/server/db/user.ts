@@ -20,6 +20,7 @@ interface UserData {
   email: string;
   passwordHash: string;
 }
+
 export async function createUserWithEmail(userData: UserData) {
   return prisma.user.create({
     data: {

@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { TextField } from "@/components/ui/text-field";
+import { login } from "@/server/actions/auth";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address"),
@@ -14,6 +16,8 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -23,7 +27,16 @@ export default function LoginPage() {
   });
 
   const onSubmit = async (data: LoginFormValues) => {
-    console.log("login submit", data);
+    setSubmitError(null);
+
+    const result = await login({
+      email: data.email,
+      password: data.password,
+    });
+
+    if (result?.error) {
+      setSubmitError(result.error);
+    }
   };
 
   return (
@@ -63,6 +76,12 @@ export default function LoginPage() {
           }
           {...register("password")}
         />
+
+        {submitError && (
+          <p className="text-sm text-red-600" role="alert">
+            {submitError}
+          </p>
+        )}
 
         <button
           type="submit"

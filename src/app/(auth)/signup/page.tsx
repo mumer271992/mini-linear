@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { TextField } from "@/components/ui/text-field";
-import signup from "@/server/actions/auth";
+import { signup } from "@/server/actions/auth";
 
 const signupSchema = z
   .object({

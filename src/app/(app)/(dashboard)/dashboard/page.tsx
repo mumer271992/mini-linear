@@ -1,13 +1,8 @@
-import { redirect } from "next/navigation";
 import { verifySession } from "@/server/db/session";
 import { findUserById } from "@/server/db/user";
 
 export default async function DashboardPage() {
   const session = await verifySession();
-  if (!session) {
-    redirect("/login");
-  }
-
   const user = await findUserById(session.userId);
 
   return (

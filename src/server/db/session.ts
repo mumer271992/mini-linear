@@ -1,5 +1,7 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import {
   SESSION_COOKIE_NAME,
   SESSION_DURATION_MS,
@@ -30,36 +32,26 @@ export async function createSession(userId: string) {
   });
 }
 
-export async function verifySession() {
+export const verifySession = cache(async () => {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) return null;
 
-  const payload = await verifySessionToken(token);
-  if (!payload) return null;
-
-  const session = await prisma.session.findUnique({
-    where: { id: payload.sessionId },
-  });
+  const payload = token ? await verifySessionToken(token) : null;
+  const session = payload
+    ? await prisma.session.findUnique({ where: { id: payload.sessionId } })
+    : null;
 
   if (!session || session.expiresAt < new Date()) {
-    if (session) {
-      await prisma.session.delete({ where: { id: session.id } }).catch(() => {});
-    }
-
-    try {
-      // Only succeeds when verifySession() is called from a Server Action or
-      // Route Handler. Cookie mutation isn't allowed during a Server Component
-      // render, so this is a no-op there — the stale cookie just fails
-      // verification again next time, harmlessly.
-      cookieStore.delete(SESSION_COOKIE_NAME);
-    } catch {}
-
-    return null;
+    // Redirect to a Route Handler rather than clearing the cookie here —
+    // cookie mutation isn't allowed during a Server Component render, so a
+    // direct delete would silently fail. The Route Handler's response can
+    // carry a real Set-Cookie header, so the stale cookie actually gets
+    // removed before the user lands on /login.
+    redirect("/api/auth/clear-session");
   }
 
   return { sessionId: session.id, userId: session.userId };
-}
+});
 
 export async function deleteSession() {
   const cookieStore = await cookies();

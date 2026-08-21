@@ -16,9 +16,17 @@ export interface SessionTokenPayload extends JWTPayload {
 }
 
 export async function signSessionToken(payload: SessionTokenPayload) {
+  // Bounds how long Proxy will trust this cookie without a DB check. The
+  // database session row remains the authority for early revocation (logout
+  // clears the cookie directly, since that runs as a Server Action); this
+  // only stops Proxy from waving through a cookie whose session has long
+  // since naturally expired but never got cleared client-side.
+  const expirationTime = Math.floor((Date.now() + SESSION_DURATION_MS) / 1000);
+
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
+    .setExpirationTime(expirationTime)
     .sign(encodedKey);
 }
 

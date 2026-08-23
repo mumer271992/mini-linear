@@ -1,18 +1,24 @@
+import { redirect } from "next/navigation";
 import { verifySession } from "@/server/db/session";
-import { findUserById } from "@/server/db/user";
+import { requireOrganization } from "@/server/db/organization";
+import { selectDefaultOrganization } from "@/lib/organization";
 
+// This route is only an entry point: it resolves which organization the
+// user should land on (last active, falling back to the oldest membership)
+// and redirects to that organization's own dashboard. It never renders UI
+// of its own.
 export default async function DashboardPage() {
   const session = await verifySession();
-  const user = await findUserById(session.userId);
+  const organizations = await requireOrganization(session.userId);
 
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center">
-      <h1 className="text-2xl font-semibold tracking-tight">
-        Welcome, {user?.name}
-      </h1>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        {user?.email}
-      </p>
-    </div>
+  const organization = selectDefaultOrganization(
+    organizations,
+    session.lastOrganizationId,
   );
+
+  if (!organization) {
+    redirect("/onboarding");
+  }
+
+  redirect(`/dashboard/${organization.slug}`);
 }

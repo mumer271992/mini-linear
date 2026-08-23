@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { TextField } from "@/components/ui/text-field";
 import { slugify } from "@/lib/string";
+import { createOrganization } from "@/server/actions/organization";
 
 const createOrganizationSchema = z.object({
   name: z.string().min(2, "Organization name must be at least 2 characters"),
@@ -35,8 +36,15 @@ export function CreateOrganizationForm() {
 
   const onSubmit = async (data: CreateOrganizationFormValues) => {
     setSubmitError(null);
-    // TODO: wire up a createOrganization server action
-    console.log("create organization", data);
+
+    const result = await createOrganization({
+      name: data.name,
+      slug: data.slug,
+    });
+
+    if (result?.error) {
+      setSubmitError(result.error);
+    }
   };
 
   return (
@@ -88,7 +96,7 @@ export function CreateOrganizationForm() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="mt-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50 dark:hover:bg-[#ccc]"
+          className="mt-2 cursor-pointer rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-[#ccc]"
         >
           {isSubmitting ? "Creating..." : "Create organization"}
         </button>

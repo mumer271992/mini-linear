@@ -50,8 +50,22 @@ export const verifySession = cache(async () => {
     redirect("/api/auth/clear-session");
   }
 
-  return { sessionId: session.id, userId: session.userId };
+  return {
+    sessionId: session.id,
+    userId: session.userId,
+    lastOrganizationId: session.lastOrganizationId,
+  };
 });
+
+export async function setSessionOrganization(
+  sessionId: string,
+  organizationId: string,
+) {
+  await prisma.session.update({
+    where: { id: sessionId },
+    data: { lastOrganizationId: organizationId },
+  });
+}
 
 export async function deleteSession() {
   const cookieStore = await cookies();

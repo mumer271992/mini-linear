@@ -55,7 +55,7 @@ export async function signup(formData: SignupRequest): Promise<SignupResult> {
 
   await createSession(user.id);
 
-  redirect("/onboarding");
+  redirect("/dashboard");
 }
 
 interface LoginRequest {

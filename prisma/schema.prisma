@@ -31,6 +31,7 @@ model Organization {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   memberships Membership[]
+  sessions    Session[]
 
   @@map("organizations")
 }
@@ -64,12 +65,14 @@ model Membership {
 }
 
 model Session {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  expiresAt DateTime @map("expires_at")
+  id                 String   @id @default(uuid())
+  userId             String   @map("user_id")
+  lastOrganizationId String?  @map("last_organization_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+  expiresAt          DateTime @map("expires_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastOrganization Organization? @relation(fields: [lastOrganizationId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@map("sessions")

@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { TextField } from "@/components/ui/text-field";
+import { Button } from "@/components/ui/button";
 import { slugify } from "@/lib/string";
 import { createOrganization } from "@/server/actions/organization";
 
@@ -93,13 +94,9 @@ export function CreateOrganizationForm() {
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="mt-2 cursor-pointer rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-[#ccc]"
-        >
-          {isSubmitting ? "Creating..." : "Create organization"}
-        </button>
+        <Button type="submit" isProcessing={isSubmitting} className="mt-2">
+          Create organization
+        </Button>
       </form>
     </div>
   );

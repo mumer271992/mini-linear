@@ -1,13 +1,14 @@
 import { Sidebar } from "@/components/sidebar";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
-}: {
-  children: React.ReactNode;
-}) {
+  params,
+}: LayoutProps<"/dashboard/[orgSlug]">) {
+  const { orgSlug } = await params;
+
   return (
     <div className="flex flex-1">
-      <Sidebar />
+      <Sidebar orgSlug={orgSlug} />
       <main className="flex flex-1 flex-col bg-white dark:bg-zinc-900">
         {children}
       </main>

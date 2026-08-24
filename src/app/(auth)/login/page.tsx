@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { TextField } from "@/components/ui/text-field";
+import { Button } from "@/components/ui/button";
 import { login } from "@/server/actions/auth";
 
 const loginSchema = z.object({
@@ -83,13 +84,9 @@ export default function LoginPage() {
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="mt-2 cursor-pointer rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-[#ccc]"
-        >
-          {isSubmitting ? "Logging in..." : "Log in"}
-        </button>
+        <Button type="submit" isProcessing={isSubmitting} className="mt-2">
+          Log in
+        </Button>
       </form>
 
       <p className="mt-6 text-center text-sm text-zinc-600 dark:text-zinc-400">

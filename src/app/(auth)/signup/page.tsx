@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { TextField } from "@/components/ui/text-field";
+import { Button } from "@/components/ui/button";
 import { signup } from "@/server/actions/auth";
 
 const signupSchema = z
@@ -106,13 +107,9 @@ export default function SignupPage() {
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="mt-2 cursor-pointer rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-[#ccc]"
-        >
-          {isSubmitting ? "Creating account..." : "Sign up"}
-        </button>
+        <Button type="submit" isProcessing={isSubmitting} className="mt-2">
+          Sign up
+        </Button>
       </form>
 
       <p className="mt-6 text-center text-sm text-zinc-600 dark:text-zinc-400">

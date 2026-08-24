@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { generatePasswordHash, verifyPasswordHash } from "@/lib/auth";
-import { createSession } from "@/server/db/session";
+import { createSession, deleteSession } from "@/server/db/session";
 import { createUserWithEmail, findUserByEmail } from "@/server/db/user";
 import { Prisma } from "@/generated/prisma/client";
 
@@ -92,4 +92,19 @@ export async function login(formData: LoginRequest): Promise<LoginResult> {
   await createSession(user.id);
 
   redirect("/dashboard");
+}
+
+export async function logout(fallbackPath?: string) {
+  await deleteSession();
+
+  // Only follow the caller-supplied path if it's a genuine relative,
+  // same-origin path -- otherwise a value like "https://evil.com" or
+  // "//evil.com" (protocol-relative) passed into redirect() would send the
+  // user to an external site right after a trusted first-party action.
+  const isSafeRelativePath =
+    !!fallbackPath &&
+    fallbackPath.startsWith("/") &&
+    !fallbackPath.startsWith("//");
+
+  redirect(isSafeRelativePath ? fallbackPath : "/");
 }

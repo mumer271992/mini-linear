@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "migrate": "./scripts/migrate.sh"
+    "typecheck": "next typegen && tsc --noEmit",
+    "migrate": "./scripts/migrate.sh",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

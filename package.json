@@ -10,6 +10,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "migrate": "./scripts/migrate.sh",
     "migrate:prod": "./scripts/deploy-migrations-prod.sh",
+    "seed": "tsx prisma/seed.ts",
+    "seed:prod": "./scripts/seed-prod.sh",
     "postinstall": "prisma generate"
   },
   "dependencies": {

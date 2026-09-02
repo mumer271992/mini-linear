@@ -7,5 +7,10 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
+    env: {
+      // src/lib/session.ts reads this at module-load time; needs to exist
+      // before any test file imports it. Not a real secret.
+      SESSION_SECRET: "test-only-session-secret-not-used-anywhere-real",
+    },
   },
 });

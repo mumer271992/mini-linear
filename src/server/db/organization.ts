@@ -62,3 +62,47 @@ export const requireOrganization = cache(async (userId: string) => {
 
   return organizations;
 });
+
+// Guards against a logged-in user reaching another organization's data just
+// by knowing or guessing its slug -- being authenticated only proves who you
+// are, not that you belong to the organization the request is scoped to.
+export async function requireMembership(
+  userId: string,
+  organizationSlug: string,
+) {
+  const organization = await findOrganizationBySlug(organizationSlug);
+  if (!organization) {
+    throw new Error("Organization not found.");
+  }
+
+  const membership = await prisma.membership.findUnique({
+    where: {
+      userId_organizationId: {
+        userId,
+        organizationId: organization.id,
+      },
+    },
+    include: { role: true },
+  });
+
+  if (!membership) {
+    throw new Error("You are not a member of this organization.");
+  }
+
+  return membership;
+}
+
+// Membership alone only proves the user belongs to the organization -- this
+// checks whether their specific role is actually allowed to do this action.
+export function requirePermission(
+  membership: Awaited<ReturnType<typeof requireMembership>>,
+  permission: string,
+) {
+  const permissions = Array.isArray(membership.role.permissions)
+    ? membership.role.permissions
+    : [];
+
+  if (!permissions.includes(permission)) {
+    throw new Error("You do not have permission to perform this action.");
+  }
+}

@@ -27,6 +27,8 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      # Unit tests slot in here once a test suite exists (npm test).
+      - name: Unit tests
+        run: npm run test
+
       # Deployment is handled entirely by Vercel's own Git integration,
       # triggered independently of this workflow.

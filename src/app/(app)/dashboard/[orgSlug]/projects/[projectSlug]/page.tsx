@@ -3,6 +3,7 @@ import { verifySession } from "@/server/db/session";
 import { getOrganizationMembers, requireMembership } from "@/server/db/organization";
 import { findProjectBySlug } from "@/server/db/project";
 import { ProjectDetailTabs } from "@/components/project-detail-tabs";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 
 export default async function ProjectDetailsPage({
   params,
@@ -21,6 +22,13 @@ export default async function ProjectDetailsPage({
 
   return (
     <div className="flex flex-1 flex-col p-8">
+      <Breadcrumb
+        items={[
+          { label: "Projects", href: `/dashboard/${orgSlug}/projects` },
+          { label: project.name },
+        ]}
+        className="mb-2"
+      />
       <h1 className="text-2xl font-semibold tracking-tight">{project.name}</h1>
       <ProjectDetailTabs
         orgSlug={orgSlug}

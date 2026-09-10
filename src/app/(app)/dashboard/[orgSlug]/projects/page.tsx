@@ -4,6 +4,7 @@ import { requireMembership } from "@/server/db/organization";
 import { getProjectsForOrganization } from "@/server/db/project";
 import { getProjectPriorityOption, getProjectStatusOption } from "@/lib/project";
 import { cn } from "@/lib/utils";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -22,6 +23,7 @@ export default async function ProjectsPage({
 
   return (
     <div className="flex flex-1 flex-col p-8">
+      <Breadcrumb items={[{ label: "Projects" }]} className="mb-2" />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
         <Link

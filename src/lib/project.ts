@@ -32,3 +32,15 @@ export function getProjectPriorityOption(value: ProjectPriority) {
 export function getProjectStatusOption(value: ProjectStatus) {
   return PROJECT_STATUS_OPTIONS.find((option) => option.value === value)!;
 }
+
+// YYYY-MM-DD, matching the native date input's value format and how target
+// dates are already serialized elsewhere (toISOString().slice(0, 10)) --
+// plain string comparison is enough and sidesteps timezone-parsing bugs
+// that come from constructing Date objects just to compare calendar days.
+export function getTodayDateString() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function isTargetDateValid(dateString: string) {
+  return dateString >= getTodayDateString();
+}

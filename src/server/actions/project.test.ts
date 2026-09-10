@@ -1,8 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
 import { verifySession } from "@/server/db/session";
-import { requireMembership, requirePermission } from "@/server/db/organization";
+import {
+  isOrganizationMember,
+  requireMembership,
+  requirePermission,
+} from "@/server/db/organization";
 import {
   createProject as createProjectRecord,
   updateProject as updateProjectRecord,
@@ -13,6 +17,7 @@ import { createProject, deleteProject, updateProject } from "./project";
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/server/db/session", () => ({ verifySession: vi.fn() }));
 vi.mock("@/server/db/organization", () => ({
+  isOrganizationMember: vi.fn(),
   requireMembership: vi.fn(),
   requirePermission: vi.fn(),
 }));
@@ -23,6 +28,7 @@ vi.mock("@/server/db/project", () => ({
 }));
 
 const mockedVerifySession = vi.mocked(verifySession);
+const mockedIsOrganizationMember = vi.mocked(isOrganizationMember);
 const mockedRequireMembership = vi.mocked(requireMembership);
 const mockedRequirePermission = vi.mocked(requirePermission);
 const mockedCreateProjectRecord = vi.mocked(createProjectRecord);
@@ -48,12 +54,19 @@ function p2025() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-06-15T12:00:00Z"));
   mockedVerifySession.mockResolvedValue({
     sessionId: "session-1",
     userId: "user-1",
     lastOrganizationId: null,
   });
   mockedRequireMembership.mockResolvedValue(fakeMembership as never);
+  mockedIsOrganizationMember.mockResolvedValue(true);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("createProject", () => {
@@ -140,6 +153,63 @@ describe("createProject", () => {
       "You are not a member of this organization.",
     );
     expect(mockedCreateProjectRecord).not.toHaveBeenCalled();
+  });
+
+  it("rejects an assignedToId that isn't a member of the organization", async () => {
+    mockedIsOrganizationMember.mockResolvedValue(false);
+
+    const result = await createProject("acme", {
+      name: "Website Redesign",
+      assignedToId: "user-outsider",
+    });
+
+    expect(mockedIsOrganizationMember).toHaveBeenCalledWith("user-outsider", "acme");
+    expect(result).toEqual({
+      error: "Selected assignee is not a member of this organization.",
+    });
+    expect(mockedCreateProjectRecord).not.toHaveBeenCalled();
+  });
+
+  it("creates the project when assignedToId is a member", async () => {
+    mockedCreateProjectRecord.mockResolvedValue({} as never);
+
+    await createProject("acme", {
+      name: "Website Redesign",
+      assignedToId: "user-2",
+    });
+
+    expect(mockedIsOrganizationMember).toHaveBeenCalledWith("user-2", "acme");
+    const [, data] = mockedCreateProjectRecord.mock.calls[0];
+    expect(data.assignedToId).toBe("user-2");
+  });
+
+  it("skips the membership check when assignedToId is absent", async () => {
+    mockedCreateProjectRecord.mockResolvedValue({} as never);
+
+    await createProject("acme", { name: "Website Redesign" });
+
+    expect(mockedIsOrganizationMember).not.toHaveBeenCalled();
+  });
+
+  it("rejects a targetDate in the past", async () => {
+    const result = await createProject("acme", {
+      name: "Website Redesign",
+      targetDate: "2026-06-14",
+    });
+
+    expect(result).toEqual({ error: "Target date cannot be in the past." });
+    expect(mockedCreateProjectRecord).not.toHaveBeenCalled();
+  });
+
+  it("accepts today as a targetDate", async () => {
+    mockedCreateProjectRecord.mockResolvedValue({} as never);
+
+    await createProject("acme", {
+      name: "Website Redesign",
+      targetDate: "2026-06-15",
+    });
+
+    expect(mockedCreateProjectRecord).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -228,6 +298,56 @@ describe("updateProject", () => {
     await updateProject("acme", "website-redesign-abc123", { status: "COMPLETED" });
 
     expect(mockedRedirect).toHaveBeenCalledWith("/dashboard/acme/projects");
+  });
+
+  it("rejects an assignedToId that isn't a member of the organization", async () => {
+    mockedIsOrganizationMember.mockResolvedValue(false);
+
+    const result = await updateProject("acme", "website-redesign-abc123", {
+      assignedToId: "user-outsider",
+    });
+
+    expect(mockedIsOrganizationMember).toHaveBeenCalledWith("user-outsider", "acme");
+    expect(result).toEqual({
+      error: "Selected assignee is not a member of this organization.",
+    });
+    expect(mockedUpdateProjectRecord).not.toHaveBeenCalled();
+  });
+
+  it("allows clearing assignedToId to null without a membership check", async () => {
+    mockedUpdateProjectRecord.mockResolvedValue({} as never);
+
+    await updateProject("acme", "website-redesign-abc123", { assignedToId: null });
+
+    expect(mockedIsOrganizationMember).not.toHaveBeenCalled();
+    const [, , data] = mockedUpdateProjectRecord.mock.calls[0];
+    expect(data.assignedToId).toBeNull();
+  });
+
+  it("skips the membership check when assignedToId is absent from the payload", async () => {
+    mockedUpdateProjectRecord.mockResolvedValue({} as never);
+
+    await updateProject("acme", "website-redesign-abc123", { status: "COMPLETED" });
+
+    expect(mockedIsOrganizationMember).not.toHaveBeenCalled();
+  });
+
+  it("rejects a targetDate in the past", async () => {
+    const result = await updateProject("acme", "website-redesign-abc123", {
+      targetDate: "2026-06-14",
+    });
+
+    expect(result).toEqual({ error: "Target date cannot be in the past." });
+    expect(mockedUpdateProjectRecord).not.toHaveBeenCalled();
+  });
+
+  it("allows clearing targetDate to null without a past-date check", async () => {
+    mockedUpdateProjectRecord.mockResolvedValue({} as never);
+
+    await updateProject("acme", "website-redesign-abc123", { targetDate: null });
+
+    const [, , data] = mockedUpdateProjectRecord.mock.calls[0];
+    expect(data.targetDate).toBeNull();
   });
 });
 

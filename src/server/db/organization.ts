@@ -68,6 +68,31 @@ export async function getOrganizationMembers(organizationSlug: string) {
   return memberships.map((membership) => membership.user);
 }
 
+// For validating a *target* user (e.g. an assignee picked from a dropdown),
+// as opposed to requireMembership which checks the acting/session user and
+// throws -- this returns a boolean so callers can surface a normal
+// validation error instead of a hard failure.
+export async function isOrganizationMember(
+  userId: string,
+  organizationSlug: string,
+) {
+  const organization = await findOrganizationBySlug(organizationSlug);
+  if (!organization) {
+    return false;
+  }
+
+  const membership = await prisma.membership.findUnique({
+    where: {
+      userId_organizationId: {
+        userId,
+        organizationId: organization.id,
+      },
+    },
+  });
+
+  return membership !== null;
+}
+
 export const requireOrganization = cache(async (userId: string) => {
   const organizations = await getOrganizationsForUser(userId);
 

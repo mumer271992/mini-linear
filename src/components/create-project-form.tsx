@@ -9,13 +9,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { createProject } from "@/server/actions/project";
-import { PROJECT_PRIORITY_OPTIONS, PROJECT_STATUS_OPTIONS } from "@/lib/project";
+import {
+  PROJECT_PRIORITY_OPTIONS,
+  PROJECT_STATUS_OPTIONS,
+  getTodayDateString,
+  isTargetDateValid,
+} from "@/lib/project";
 
 const createProjectSchema = z.object({
   name: z.string().min(2, "Project name must be at least 2 characters"),
   summary: z.string().optional(),
   description: z.string().optional(),
-  targetDate: z.string().optional(),
+  targetDate: z
+    .string()
+    .optional()
+    .refine((value) => !value || isTargetDateValid(value), {
+      message: "Target date cannot be in the past",
+    }),
   assignedToId: z.string().optional(),
   priority: z.enum(["URGENT", "HIGH", "MEDIUM", "LOW"]),
   status: z.enum(["BACKLOG", "PLANNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]),
@@ -97,6 +107,7 @@ export function CreateProjectForm({ orgSlug, members }: CreateProjectFormProps) 
           id="targetDate"
           label="Target date"
           type="date"
+          min={getTodayDateString()}
           error={errors.targetDate?.message}
           {...register("targetDate")}
         />

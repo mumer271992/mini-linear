@@ -3,13 +3,18 @@
 import crypto from "crypto";
 import { redirect } from "next/navigation";
 import { verifySession } from "@/server/db/session";
-import { requireMembership, requirePermission } from "@/server/db/organization";
+import {
+  isOrganizationMember,
+  requireMembership,
+  requirePermission,
+} from "@/server/db/organization";
 import {
   createProject as createProjectRecord,
   updateProject as updateProjectRecord,
   deleteProject as deleteProjectRecord,
 } from "@/server/db/project";
 import { slugify } from "@/lib/string";
+import { isTargetDateValid } from "@/lib/project";
 import { isRecordNotFoundError, isUniqueConstraintError } from "@/lib/prisma";
 import type { ProjectPriority, ProjectStatus } from "@/generated/prisma/client";
 
@@ -45,6 +50,17 @@ export async function createProject(
   const name = formData.name?.trim();
   if (!name || name.length < 2) {
     return { error: "Project name must be at least 2 characters." };
+  }
+
+  if (
+    formData.assignedToId &&
+    !(await isOrganizationMember(formData.assignedToId, organizationSlug))
+  ) {
+    return { error: "Selected assignee is not a member of this organization." };
+  }
+
+  if (formData.targetDate && !isTargetDateValid(formData.targetDate)) {
+    return { error: "Target date cannot be in the past." };
   }
 
   for (let attempt = 1; attempt <= MAX_SLUG_ATTEMPTS; attempt++) {
@@ -101,6 +117,17 @@ export async function updateProject(
       return { error: "Project name must be at least 2 characters." };
     }
     formData.name = trimmedName;
+  }
+
+  if (
+    formData.assignedToId &&
+    !(await isOrganizationMember(formData.assignedToId, organizationSlug))
+  ) {
+    return { error: "Selected assignee is not a member of this organization." };
+  }
+
+  if (formData.targetDate && !isTargetDateValid(formData.targetDate)) {
+    return { error: "Target date cannot be in the past." };
   }
 
   try {

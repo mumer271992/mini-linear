@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/server/db";
-import { getOrganizationMembers, requireMembership, requirePermission } from "./organization";
+import {
+  getOrganizationMembers,
+  isOrganizationMember,
+  requireMembership,
+  requirePermission,
+} from "./organization";
 
 vi.mock("@/server/db", () => ({
   prisma: {
@@ -42,6 +47,29 @@ describe("requireMembership", () => {
     mockedFindMembership.mockResolvedValue(membership as never);
 
     await expect(requireMembership("user-1", "acme")).resolves.toBe(membership);
+  });
+});
+
+describe("isOrganizationMember", () => {
+  it("returns false when the organization doesn't exist", async () => {
+    mockedFindOrganization.mockResolvedValue(null);
+
+    await expect(isOrganizationMember("user-1", "no-such-org")).resolves.toBe(false);
+    expect(mockedFindMembership).not.toHaveBeenCalled();
+  });
+
+  it("returns false when the user has no membership in the organization", async () => {
+    mockedFindOrganization.mockResolvedValue({ id: "org-1" } as never);
+    mockedFindMembership.mockResolvedValue(null);
+
+    await expect(isOrganizationMember("user-1", "acme")).resolves.toBe(false);
+  });
+
+  it("returns true when the user is a member", async () => {
+    mockedFindOrganization.mockResolvedValue({ id: "org-1" } as never);
+    mockedFindMembership.mockResolvedValue({ id: "membership-1" } as never);
+
+    await expect(isOrganizationMember("user-1", "acme")).resolves.toBe(true);
   });
 });
 

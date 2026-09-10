@@ -62,7 +62,12 @@ export default async function ProjectsPage({
                     className="border-b border-black/[.08] last:border-b-0 dark:border-white/[.145]"
                   >
                     <td className="px-4 py-3 font-medium text-zinc-950 dark:text-zinc-50">
-                      {project.name}
+                      <Link
+                        href={`/dashboard/${orgSlug}/projects/${project.slug}`}
+                        className="hover:underline"
+                      >
+                        {project.name}
+                      </Link>
                     </td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-2">

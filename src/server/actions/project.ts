@@ -26,6 +26,7 @@ interface CreateProjectRequest {
   description?: string;
   targetDate?: string;
   priority?: ProjectPriority;
+  status?: ProjectStatus;
   assignedToId?: string;
 }
 
@@ -55,6 +56,7 @@ export async function createProject(
         description: formData.description,
         targetDate: formData.targetDate ? new Date(formData.targetDate) : undefined,
         priority: formData.priority,
+        status: formData.status,
         assignedToId: formData.assignedToId,
       });
       break;

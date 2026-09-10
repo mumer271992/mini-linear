@@ -1,16 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/server/db";
-import { requireMembership, requirePermission } from "./organization";
+import { getOrganizationMembers, requireMembership, requirePermission } from "./organization";
 
 vi.mock("@/server/db", () => ({
   prisma: {
     organization: { findUnique: vi.fn() },
-    membership: { findUnique: vi.fn() },
+    membership: { findUnique: vi.fn(), findMany: vi.fn() },
   },
 }));
 
 const mockedFindOrganization = vi.mocked(prisma.organization.findUnique);
 const mockedFindMembership = vi.mocked(prisma.membership.findUnique);
+const mockedFindManyMemberships = vi.mocked(prisma.membership.findMany);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -41,6 +42,30 @@ describe("requireMembership", () => {
     mockedFindMembership.mockResolvedValue(membership as never);
 
     await expect(requireMembership("user-1", "acme")).resolves.toBe(membership);
+  });
+});
+
+describe("getOrganizationMembers", () => {
+  it("throws when the organization doesn't exist", async () => {
+    mockedFindOrganization.mockResolvedValue(null);
+
+    await expect(getOrganizationMembers("no-such-org")).rejects.toThrow(
+      "Organization not found.",
+    );
+    expect(mockedFindManyMemberships).not.toHaveBeenCalled();
+  });
+
+  it("returns each member's user record", async () => {
+    mockedFindOrganization.mockResolvedValue({ id: "org-1" } as never);
+    mockedFindManyMemberships.mockResolvedValue([
+      { user: { id: "user-1", name: "Alice" } },
+      { user: { id: "user-2", name: "Bob" } },
+    ] as never);
+
+    await expect(getOrganizationMembers("acme")).resolves.toEqual([
+      { id: "user-1", name: "Alice" },
+      { id: "user-2", name: "Bob" },
+    ]);
   });
 });
 

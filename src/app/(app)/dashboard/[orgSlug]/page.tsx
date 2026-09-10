@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { verifySession, setSessionOrganization } from "@/server/db/session";
-import { findOrganizationBySlug } from "@/server/db/organization";
+import { findOrganizationBySlug, requireMembership } from "@/server/db/organization";
 
 export default async function OrganizationDashboardPage({
   params,
@@ -13,6 +13,7 @@ export default async function OrganizationDashboardPage({
     notFound();
   }
 
+  await requireMembership(session.userId, orgSlug);
   await setSessionOrganization(session.sessionId, organization.id);
 
   return (

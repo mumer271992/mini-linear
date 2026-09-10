@@ -42,4 +42,21 @@ describe("TextField", () => {
     render(<TextField id="name" label="Name" ref={ref} />);
     expect(ref.current).toBeInstanceOf(HTMLInputElement);
   });
+
+  it("links the error message to the input for assistive tech when an error is present", () => {
+    render(<TextField id="email" label="Email" error="Required" />);
+
+    const input = screen.getByLabelText("Email");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-describedby", "email-error");
+    expect(screen.getByText("Required")).toHaveAttribute("id", "email-error");
+  });
+
+  it("does not mark the input invalid or describe it when there's no error", () => {
+    render(<TextField id="email" label="Email" />);
+
+    const input = screen.getByLabelText("Email");
+    expect(input).toHaveAttribute("aria-invalid", "false");
+    expect(input).not.toHaveAttribute("aria-describedby");
+  });
 });

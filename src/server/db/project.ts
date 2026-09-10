@@ -41,6 +41,9 @@ export async function getProjectsForOrganization(organizationSlug: string) {
 
   return prisma.project.findMany({
     where: { organizationId },
+    include: {
+      assignedTo: { select: { id: true, name: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
 }

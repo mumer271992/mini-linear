@@ -86,6 +86,20 @@ describe("createProject", () => {
     expect(mockedRedirect).toHaveBeenCalledWith("/dashboard/acme/projects");
   });
 
+  it("passes status through to the DB layer", async () => {
+    mockedCreateProjectRecord.mockResolvedValue({} as never);
+
+    await createProject("acme", {
+      name: "Website Redesign",
+      status: "IN_PROGRESS",
+      priority: "HIGH",
+    });
+
+    const [, data] = mockedCreateProjectRecord.mock.calls[0];
+    expect(data.status).toBe("IN_PROGRESS");
+    expect(data.priority).toBe("HIGH");
+  });
+
   it("retries with a fresh slug on a slug collision (P2002)", async () => {
     mockedCreateProjectRecord.mockRejectedValueOnce(p2002()).mockResolvedValueOnce({} as never);
 

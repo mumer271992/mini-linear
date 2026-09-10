@@ -1,7 +1,7 @@
-import { forwardRef, type InputHTMLAttributes, type ReactNode } from "react";
+import { forwardRef, type ReactNode, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
+export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
   error?: string;
   labelExtra?: ReactNode;
@@ -10,7 +10,7 @@ export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   errorClassName?: string;
 }
 
-export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   (
     {
       label,
@@ -40,7 +40,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
             {labelExtra}
           </div>
         )}
-        <input
+        <textarea
           id={id}
           ref={ref}
           aria-invalid={!!error}
@@ -60,4 +60,4 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
     );
   },
 );
-TextField.displayName = "TextField";
+Textarea.displayName = "Textarea";

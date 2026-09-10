@@ -53,6 +53,21 @@ export async function getOrganizationsForUser(userId: string) {
   return memberships.map((membership) => membership.organization);
 }
 
+export async function getOrganizationMembers(organizationSlug: string) {
+  const organization = await findOrganizationBySlug(organizationSlug);
+  if (!organization) {
+    throw new Error("Organization not found.");
+  }
+
+  const memberships = await prisma.membership.findMany({
+    where: { organizationId: organization.id },
+    include: { user: { select: { id: true, name: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return memberships.map((membership) => membership.user);
+}
+
 export const requireOrganization = cache(async (userId: string) => {
   const organizations = await getOrganizationsForUser(userId);
 
@@ -66,31 +81,34 @@ export const requireOrganization = cache(async (userId: string) => {
 // Guards against a logged-in user reaching another organization's data just
 // by knowing or guessing its slug -- being authenticated only proves who you
 // are, not that you belong to the organization the request is scoped to.
-export async function requireMembership(
-  userId: string,
-  organizationSlug: string,
-) {
-  const organization = await findOrganizationBySlug(organizationSlug);
-  if (!organization) {
-    throw new Error("Organization not found.");
-  }
+// cache()-wrapped so multiple callers within the same request (a page and
+// something it renders, say) share one query instead of duplicating it --
+// this does NOT mean the check is skipped on subsequent navigations, since
+// each navigation is its own request and gets a fresh cache.
+export const requireMembership = cache(
+  async (userId: string, organizationSlug: string) => {
+    const organization = await findOrganizationBySlug(organizationSlug);
+    if (!organization) {
+      throw new Error("Organization not found.");
+    }
 
-  const membership = await prisma.membership.findUnique({
-    where: {
-      userId_organizationId: {
-        userId,
-        organizationId: organization.id,
+    const membership = await prisma.membership.findUnique({
+      where: {
+        userId_organizationId: {
+          userId,
+          organizationId: organization.id,
+        },
       },
-    },
-    include: { role: true },
-  });
+      include: { role: true },
+    });
 
-  if (!membership) {
-    throw new Error("You are not a member of this organization.");
-  }
+    if (!membership) {
+      throw new Error("You are not a member of this organization.");
+    }
 
-  return membership;
-}
+    return membership;
+  },
+);
 
 // Membership alone only proves the user belongs to the organization -- this
 // checks whether their specific role is actually allowed to do this action.

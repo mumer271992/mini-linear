@@ -1,18 +1,17 @@
 import { notFound } from "next/navigation";
-import { verifySession } from "@/server/db/session";
-import { getOrganizationMembers, requireMembership } from "@/server/db/organization";
+import { getOrganizationMembers } from "@/server/db/organization";
 import { findProjectBySlug } from "@/server/db/project";
-import { ProjectDetailTabs } from "@/components/project-detail-tabs";
-import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { EditProjectForm } from "@/components/edit-project-form";
 
-export default async function ProjectDetailsPage({
+export default async function ProjectOverviewPage({
   params,
 }: PageProps<"/dashboard/[orgSlug]/projects/[projectSlug]">) {
-  const session = await verifySession();
   const { orgSlug, projectSlug } = await params;
 
-  await requireMembership(session.userId, orgSlug);
-
+  // findProjectBySlug is cache()-wrapped, so this is the same request-scoped
+  // result the layout already fetched -- not a second query. The null check
+  // is only here for TypeScript to narrow the type; the layout's own check
+  // already guarantees this can't actually be null.
   const project = await findProjectBySlug(orgSlug, projectSlug);
   if (!project) {
     notFound();
@@ -21,16 +20,8 @@ export default async function ProjectDetailsPage({
   const members = await getOrganizationMembers(orgSlug);
 
   return (
-    <div className="flex flex-1 flex-col p-8">
-      <Breadcrumb
-        items={[
-          { label: "Projects", href: `/dashboard/${orgSlug}/projects` },
-          { label: project.name },
-        ]}
-        className="mb-2"
-      />
-      <h1 className="text-2xl font-semibold tracking-tight">{project.name}</h1>
-      <ProjectDetailTabs
+    <div className="max-w-sm">
+      <EditProjectForm
         orgSlug={orgSlug}
         projectSlug={projectSlug}
         project={project}

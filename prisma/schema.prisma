@@ -21,6 +21,7 @@ model User {
   memberships      Membership[]
   sessions         Session[]
   assignedProjects Project[]
+  assignedTasks    Task[]
 
   @@map("users")
 }
@@ -112,7 +113,34 @@ model Project {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   assignedTo   User?        @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  tasks        Task[]
 
   @@unique([organizationId, slug])
   @@map("projects")
+}
+
+enum TaskStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  CANCELLED
+}
+
+model Task {
+  id           String     @id @default(uuid())
+  title        String
+  description  String?
+  projectId    String     @map("project_id")
+  assignedToId String?    @map("assigned_to_id")
+  status       TaskStatus @default(BACKLOG)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignedTo User?   @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@map("tasks")
 }

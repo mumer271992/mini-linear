@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { prisma } from "@/server/db";
 import { findOrganizationBySlug } from "@/server/db/organization";
 import type { ProjectPriority, ProjectStatus } from "@/generated/prisma/client";
@@ -48,21 +49,24 @@ export async function getProjectsForOrganization(organizationSlug: string) {
   });
 }
 
-export async function findProjectBySlug(
-  organizationSlug: string,
-  projectSlug: string,
-) {
-  const organizationId = await requireOrganizationId(organizationSlug);
+// cache()-wrapped so the project-detail layout and its nested pages (which
+// each need this independently -- Next.js doesn't let a layout pass fetched
+// data down into a page as props) share one query per request instead of
+// duplicating it.
+export const findProjectBySlug = cache(
+  async (organizationSlug: string, projectSlug: string) => {
+    const organizationId = await requireOrganizationId(organizationSlug);
 
-  return prisma.project.findUnique({
-    where: {
-      organizationId_slug: {
-        organizationId,
-        slug: projectSlug,
+    return prisma.project.findUnique({
+      where: {
+        organizationId_slug: {
+          organizationId,
+          slug: projectSlug,
+        },
       },
-    },
-  });
-}
+    });
+  },
+);
 
 interface UpdateProjectData {
   name?: string;

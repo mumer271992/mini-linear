@@ -1,20 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { verifySession } from "@/server/db/session";
-import { getOrganizationMembers, requireMembership } from "@/server/db/organization";
+import { getOrganizationMembers } from "@/server/db/organization";
 import { findProjectBySlug } from "@/server/db/project";
-import ProjectDetailsPage from "./page";
+import ProjectOverviewPage from "./page";
 
-vi.mock("@/server/db/session", () => ({ verifySession: vi.fn() }));
-vi.mock("@/server/db/organization", () => ({
-  requireMembership: vi.fn(),
-  getOrganizationMembers: vi.fn(),
-}));
+vi.mock("@/server/db/organization", () => ({ getOrganizationMembers: vi.fn() }));
 vi.mock("@/server/db/project", () => ({ findProjectBySlug: vi.fn() }));
 vi.mock("@/server/actions/project", () => ({ updateProject: vi.fn() }));
 
-const mockedVerifySession = vi.mocked(verifySession);
-const mockedRequireMembership = vi.mocked(requireMembership);
 const mockedGetOrganizationMembers = vi.mocked(getOrganizationMembers);
 const mockedFindProjectBySlug = vi.mocked(findProjectBySlug);
 
@@ -30,28 +23,27 @@ const fakeProject = {
   assignedToId: null,
 };
 
-describe("ProjectDetailsPage breadcrumb", () => {
-  it("links back to the Projects list and shows the project name as the current page", async () => {
-    mockedVerifySession.mockResolvedValue({
-      sessionId: "session-1",
-      userId: "user-1",
-      lastOrganizationId: null,
-    });
-    mockedRequireMembership.mockResolvedValue({} as never);
-    mockedGetOrganizationMembers.mockResolvedValue([]);
+describe("ProjectOverviewPage", () => {
+  it("renders the edit form prefilled with the project's data", async () => {
     mockedFindProjectBySlug.mockResolvedValue(fakeProject as never);
+    mockedGetOrganizationMembers.mockResolvedValue([]);
 
-    const page = await ProjectDetailsPage({
+    const page = await ProjectOverviewPage({
       params: Promise.resolve({ orgSlug: "acme", projectSlug: "website-redesign-abc123" }),
     } as never);
     render(page);
 
-    const nav = screen.getByRole("navigation", { name: "Breadcrumb" });
-    const projectsLink = screen.getByRole("link", { name: "Projects" });
-    expect(nav).toContainElement(projectsLink);
-    expect(projectsLink).toHaveAttribute("href", "/dashboard/acme/projects");
+    expect(screen.getByLabelText("Name")).toHaveValue("Website Redesign");
+  });
 
-    const currentCrumb = screen.getByText("Website Redesign", { selector: "span" });
-    expect(currentCrumb).toHaveAttribute("aria-current", "page");
+  it("404s when the project doesn't exist", async () => {
+    mockedFindProjectBySlug.mockResolvedValue(null);
+    mockedGetOrganizationMembers.mockResolvedValue([]);
+
+    await expect(
+      ProjectOverviewPage({
+        params: Promise.resolve({ orgSlug: "acme", projectSlug: "no-such-project" }),
+      } as never),
+    ).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
   });
 });

@@ -53,7 +53,10 @@ export async function getOrganizationsForUser(userId: string) {
   return memberships.map((membership) => membership.organization);
 }
 
-export async function getOrganizationMembers(organizationSlug: string) {
+// cache()-wrapped for the same reason as findProjectBySlug -- multiple
+// Server Components within one request (a layout and its nested pages) each
+// need this independently, and this dedupes them to a single query.
+export const getOrganizationMembers = cache(async (organizationSlug: string) => {
   const organization = await findOrganizationBySlug(organizationSlug);
   if (!organization) {
     throw new Error("Organization not found.");
@@ -66,7 +69,7 @@ export async function getOrganizationMembers(organizationSlug: string) {
   });
 
   return memberships.map((membership) => membership.user);
-}
+});
 
 // For validating a *target* user (e.g. an assignee picked from a dropdown),
 // as opposed to requireMembership which checks the acting/session user and

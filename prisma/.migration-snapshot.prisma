@@ -1,6 +1,7 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider   = "prisma-client"
+  output     = "../src/generated/prisma"
+  engineType = "client"
 }
 
 datasource db {
@@ -17,8 +18,9 @@ model User {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  memberships Membership[]
-  sessions    Session[]
+  memberships      Membership[]
+  sessions         Session[]
+  assignedProjects Project[]
 
   @@map("users")
 }
@@ -32,6 +34,7 @@ model Organization {
 
   memberships Membership[]
   sessions    Session[]
+  projects    Project[]
 
   @@map("organizations")
 }
@@ -76,4 +79,40 @@ model Session {
 
   @@index([userId])
   @@map("sessions")
+}
+
+enum ProjectPriority {
+  URGENT
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ProjectStatus {
+  BACKLOG
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Project {
+  id             String          @id @default(uuid())
+  name           String
+  slug           String
+  summary        String?
+  description    String?
+  targetDate     DateTime?       @map("target_date")
+  priority       ProjectPriority @default(MEDIUM)
+  status         ProjectStatus   @default(BACKLOG)
+  organizationId String          @map("organization_id")
+  assignedToId   String?         @map("assigned_to_id")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedTo   User?        @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, slug])
+  @@map("projects")
 }

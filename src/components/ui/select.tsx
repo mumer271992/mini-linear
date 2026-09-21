@@ -1,7 +1,7 @@
-import { forwardRef, type InputHTMLAttributes, type ReactNode } from "react";
+import { forwardRef, type ReactNode, type SelectHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
+export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   error?: string;
   labelExtra?: ReactNode;
@@ -10,7 +10,7 @@ export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   errorClassName?: string;
 }
 
-export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
+export const Select = forwardRef<HTMLSelectElement, SelectProps>(
   (
     {
       label,
@@ -21,6 +21,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
       errorClassName,
       className,
       id,
+      children,
       ...props
     },
     ref,
@@ -40,17 +41,19 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
             {labelExtra}
           </div>
         )}
-        <input
+        <select
           id={id}
           ref={ref}
           aria-invalid={!!error}
           aria-describedby={error ? `${id}-error` : undefined}
           className={cn(
-            "rounded-md border border-black/[.08] px-3 py-2 text-sm outline-none focus:border-zinc-950 dark:border-white/[.145] dark:focus:border-zinc-50",
+            "rounded-md border border-black/[.08] bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-950 dark:border-white/[.145] dark:focus:border-zinc-50",
             className,
           )}
           {...props}
-        />
+        >
+          {children}
+        </select>
         {error && (
           <p id={`${id}-error`} className={cn("text-sm text-red-600", errorClassName)}>
             {error}
@@ -60,4 +63,4 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
     );
   },
 );
-TextField.displayName = "TextField";
+Select.displayName = "Select";

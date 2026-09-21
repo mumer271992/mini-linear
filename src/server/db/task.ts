@@ -1,7 +1,8 @@
 import "server-only";
 import { prisma } from "@/server/db";
 import { findProjectBySlug } from "@/server/db/project";
-import type { TaskStatus } from "@/generated/prisma/client";
+import { UNASSIGNED_FILTER_VALUE } from "@/lib/task";
+import type { Prisma, TaskStatus } from "@/generated/prisma/client";
 
 async function requireProjectId(organizationSlug: string, projectSlug: string) {
   const project = await findProjectBySlug(organizationSlug, projectSlug);
@@ -33,11 +34,40 @@ export async function createTask(
   });
 }
 
-export async function getTasksForProject(organizationSlug: string, projectSlug: string) {
+export interface TaskListFilters {
+  statuses?: TaskStatus[];
+  // May include UNASSIGNED_FILTER_VALUE alongside real user ids.
+  assigneeIds?: string[];
+}
+
+export async function getTasksForProject(
+  organizationSlug: string,
+  projectSlug: string,
+  filters?: TaskListFilters,
+) {
   const projectId = await requireProjectId(organizationSlug, projectSlug);
 
+  const where: Prisma.TaskWhereInput = { projectId };
+
+  if (filters?.statuses && filters.statuses.length > 0) {
+    where.status = { in: filters.statuses };
+  }
+
+  if (filters?.assigneeIds && filters.assigneeIds.length > 0) {
+    const wantsUnassigned = filters.assigneeIds.includes(UNASSIGNED_FILTER_VALUE);
+    const memberIds = filters.assigneeIds.filter((id) => id !== UNASSIGNED_FILTER_VALUE);
+
+    if (wantsUnassigned && memberIds.length > 0) {
+      where.OR = [{ assignedToId: null }, { assignedToId: { in: memberIds } }];
+    } else if (wantsUnassigned) {
+      where.assignedToId = null;
+    } else {
+      where.assignedToId = { in: memberIds };
+    }
+  }
+
   return prisma.task.findMany({
-    where: { projectId },
+    where,
     include: {
       assignedTo: { select: { id: true, name: true } },
     },

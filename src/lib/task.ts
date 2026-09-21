@@ -22,3 +22,17 @@ export function getTaskStatusOption(value: TaskStatus) {
   // the values already listed above -- the lookup can't actually miss.
   return TASK_STATUS_OPTIONS.find((option) => option.value === value)!;
 }
+
+// Not a real TaskStatus/user id -- a sentinel the Assignee filter uses to
+// mean "tasks with no assignee," shared between the filter UI, the URL
+// param parsing, and the DB query that turns it into `assignedToId: null`.
+export const UNASSIGNED_FILTER_VALUE = "unassigned";
+
+// Query params are comma-joined (e.g. ?status=BACKLOG,TODO). Next.js hands
+// back a string normally, or a string[] if the param key was repeated --
+// handle both rather than assuming the single-value case.
+export function parseTaskFilterParam(value: string | string[] | undefined): string[] {
+  if (!value) return [];
+  const raw = Array.isArray(value) ? value.join(",") : value;
+  return raw.split(",").filter(Boolean);
+}

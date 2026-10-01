@@ -6,8 +6,9 @@ import {
   createTask as createTaskRecord,
   updateTask as updateTaskRecord,
   deleteTask as deleteTaskRecord,
+  getTasksAssignedToUser,
 } from "@/server/db/task";
-import { createTask, deleteTask, updateTask } from "./task";
+import { createTask, deleteTask, getMyTasks, updateTask } from "./task";
 
 vi.mock("@/server/db/session", () => ({ verifySession: vi.fn() }));
 vi.mock("@/server/db/organization", () => ({
@@ -19,6 +20,7 @@ vi.mock("@/server/db/task", () => ({
   createTask: vi.fn(),
   updateTask: vi.fn(),
   deleteTask: vi.fn(),
+  getTasksAssignedToUser: vi.fn(),
 }));
 
 const mockedVerifySession = vi.mocked(verifySession);
@@ -28,6 +30,7 @@ const mockedRequirePermission = vi.mocked(requirePermission);
 const mockedCreateTaskRecord = vi.mocked(createTaskRecord);
 const mockedUpdateTaskRecord = vi.mocked(updateTaskRecord);
 const mockedDeleteTaskRecord = vi.mocked(deleteTaskRecord);
+const mockedGetTasksAssignedToUser = vi.mocked(getTasksAssignedToUser);
 
 const fakeMembership = { id: "membership-1", role: { permissions: [] } };
 
@@ -251,5 +254,52 @@ describe("deleteTask", () => {
     const result = await deleteTask("acme", "website-redesign-abc123", "task-1");
 
     expect(result).toEqual({ error: "Something went wrong. Please try again." });
+  });
+});
+
+describe("getMyTasks", () => {
+  it("checks membership and the task:read permission before anything else", async () => {
+    mockedGetTasksAssignedToUser.mockResolvedValue([]);
+
+    await getMyTasks("acme", "TODO");
+
+    expect(mockedRequireMembership).toHaveBeenCalledWith("user-1", "acme");
+    expect(mockedRequirePermission).toHaveBeenCalledWith(fakeMembership, "task:read");
+  });
+
+  it("resolves the user id from the session, not from a caller-supplied value", async () => {
+    mockedGetTasksAssignedToUser.mockResolvedValue([]);
+
+    await getMyTasks("acme", "TODO");
+
+    expect(mockedGetTasksAssignedToUser).toHaveBeenCalledWith("acme", "user-1", { status: "TODO" });
+  });
+
+  it("passes status through as undefined when no filter is given", async () => {
+    mockedGetTasksAssignedToUser.mockResolvedValue([]);
+
+    await getMyTasks("acme");
+
+    expect(mockedGetTasksAssignedToUser).toHaveBeenCalledWith("acme", "user-1", {
+      status: undefined,
+    });
+  });
+
+  it("returns whatever the DB layer resolves", async () => {
+    const tasks = [{ id: "task-1" }];
+    mockedGetTasksAssignedToUser.mockResolvedValue(tasks as never);
+
+    await expect(getMyTasks("acme", "DONE")).resolves.toBe(tasks);
+  });
+
+  it("propagates when the user isn't a member instead of swallowing it", async () => {
+    mockedRequireMembership.mockRejectedValue(
+      new Error("You are not a member of this organization."),
+    );
+
+    await expect(getMyTasks("acme", "TODO")).rejects.toThrow(
+      "You are not a member of this organization.",
+    );
+    expect(mockedGetTasksAssignedToUser).not.toHaveBeenCalled();
   });
 });

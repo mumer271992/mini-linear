@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/server/db";
 import { findProjectBySlug } from "@/server/db/project";
+import { findOrganizationBySlug } from "@/server/db/organization";
 import { UNASSIGNED_FILTER_VALUE } from "@/lib/task";
 import type { Prisma, TaskStatus } from "@/generated/prisma/client";
 
@@ -123,5 +124,80 @@ export async function deleteTask(
 
   return prisma.task.delete({
     where: { id: taskId, projectId },
+  });
+}
+
+export type TaskStatusCounts = Record<"TODO" | "IN_PROGRESS" | "DONE", number>;
+
+const STATUS_STAT_KEYS: (keyof TaskStatusCounts)[] = ["TODO", "IN_PROGRESS", "DONE"];
+
+// Across every project in the org, not just one -- this backs the org home
+// page's stat boxes, not the per-project Tasks tab. groupBy only returns
+// rows for statuses that actually have at least one task, so the result is
+// seeded with zeros first to guarantee all three keys are always present.
+//
+// With userId given, scopes to just that user's assigned tasks instead of
+// the whole org -- backs the "My Tasks" canned-filter pill counts, which
+// need to stay accurate even while a specific status is being displayed.
+export async function getTaskStatusCounts(
+  organizationSlug: string,
+  userId?: string,
+): Promise<TaskStatusCounts> {
+  const organization = await findOrganizationBySlug(organizationSlug);
+  if (!organization) {
+    throw new Error("Organization not found.");
+  }
+
+  const where: Prisma.TaskWhereInput = {
+    status: { in: STATUS_STAT_KEYS },
+    project: { organizationId: organization.id },
+  };
+  if (userId) {
+    where.assignedToId = userId;
+  }
+
+  const counts = await prisma.task.groupBy({
+    by: ["status"],
+    where,
+    _count: true,
+  });
+
+  const result = Object.fromEntries(STATUS_STAT_KEYS.map((status) => [status, 0])) as TaskStatusCounts;
+  for (const row of counts) {
+    result[row.status as keyof TaskStatusCounts] = row._count;
+  }
+  return result;
+}
+
+export interface MyTasksFilters {
+  status?: TaskStatus;
+}
+
+// Across every project in the org, same scope as getTaskStatusCounts --
+// backs the org home page's "My tasks" list, not the per-project Tasks tab.
+export async function getTasksAssignedToUser(
+  organizationSlug: string,
+  userId: string,
+  filters?: MyTasksFilters,
+) {
+  const organization = await findOrganizationBySlug(organizationSlug);
+  if (!organization) {
+    throw new Error("Organization not found.");
+  }
+
+  const where: Prisma.TaskWhereInput = {
+    assignedToId: userId,
+    project: { organizationId: organization.id },
+  };
+  if (filters?.status) {
+    where.status = filters.status;
+  }
+
+  return prisma.task.findMany({
+    where,
+    include: {
+      project: { select: { id: true, name: true, slug: true } },
+    },
+    orderBy: { createdAt: "desc" },
   });
 }

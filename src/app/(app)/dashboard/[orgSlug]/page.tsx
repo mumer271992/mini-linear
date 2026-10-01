@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { verifySession, setSessionOrganization } from "@/server/db/session";
 import { findOrganizationBySlug, requireMembership } from "@/server/db/organization";
+import { TaskStatusStats } from "@/components/task-status-stats";
+import { MyTasksList } from "@/components/my-tasks-list";
 
 export default async function OrganizationDashboardPage({
   params,
@@ -17,10 +19,12 @@ export default async function OrganizationDashboardPage({
   await setSessionOrganization(session.sessionId, organization.id);
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center">
+    <div className="flex flex-1 flex-col gap-6 p-4">
       <h1 className="text-2xl font-semibold tracking-tight">
-        Organization: {organization.name}
+        Welcome to {organization.name}
       </h1>
+      <TaskStatusStats orgSlug={orgSlug} />
+      <MyTasksList orgSlug={orgSlug} userId={session.userId} />
     </div>
   );
 }

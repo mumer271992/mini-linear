@@ -6,6 +6,7 @@ import {
   createTask as createTaskRecord,
   updateTask as updateTaskRecord,
   deleteTask as deleteTaskRecord,
+  getTasksAssignedToUser,
 } from "@/server/db/task";
 import { isRecordNotFoundError } from "@/lib/prisma";
 import type { Task, TaskStatus } from "@/generated/prisma/client";
@@ -103,6 +104,18 @@ export async function updateTask(
     console.error(error);
     return { error: "Something went wrong. Please try again." };
   }
+}
+
+// Called directly from a click handler (not a form submit) to back the "My
+// Tasks" canned filter pills -- userId is resolved from the session, never
+// accepted as a parameter, since this is a real callable endpoint and a
+// client could otherwise pass someone else's id to read their tasks.
+export async function getMyTasks(organizationSlug: string, status?: TaskStatus) {
+  const session = await verifySession();
+  const membership = await requireMembership(session.userId, organizationSlug);
+  requirePermission(membership, "task:read");
+
+  return getTasksAssignedToUser(organizationSlug, session.userId, { status });
 }
 
 export async function deleteTask(

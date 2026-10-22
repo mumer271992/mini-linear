@@ -78,6 +78,24 @@ describe("signup", () => {
     expect(mockedRedirect).toHaveBeenCalledWith("/dashboard");
   });
 
+  it("redirects to a safe next path instead of /dashboard", async () => {
+    mockedGeneratePasswordHash.mockResolvedValue("hashed-pw");
+    mockedCreateUserWithEmail.mockResolvedValue({ id: "user-1" } as never);
+
+    await signup({ name: "A", email: "a@example.com", password: "pw", next: "/invite/abc" });
+
+    expect(mockedRedirect).toHaveBeenCalledWith("/invite/abc");
+  });
+
+  it("falls back to /dashboard when next is off-site", async () => {
+    mockedGeneratePasswordHash.mockResolvedValue("hashed-pw");
+    mockedCreateUserWithEmail.mockResolvedValue({ id: "user-1" } as never);
+
+    await signup({ name: "A", email: "a@example.com", password: "pw", next: "https://evil.com" });
+
+    expect(mockedRedirect).toHaveBeenCalledWith("/dashboard");
+  });
+
   it("treats a concurrent duplicate email (P2002) as a normal error message", async () => {
     mockedGeneratePasswordHash.mockResolvedValue("hashed-pw");
     mockedCreateUserWithEmail.mockRejectedValue(
@@ -149,6 +167,24 @@ describe("login", () => {
     expect(mockedCreateSession).toHaveBeenCalledWith("user-1");
     expect(mockedRedirect).toHaveBeenCalledWith("/dashboard");
   });
+
+  it("redirects to a safe next path instead of /dashboard", async () => {
+    mockedFindUserByEmail.mockResolvedValue({ id: "user-1", passwordHash: "hashed-pw" } as never);
+    mockedVerifyPasswordHash.mockResolvedValue(true);
+
+    await login({ email: "a@example.com", password: "pw", next: "/invite/abc" });
+
+    expect(mockedRedirect).toHaveBeenCalledWith("/invite/abc");
+  });
+
+  it("falls back to /dashboard when next is off-site", async () => {
+    mockedFindUserByEmail.mockResolvedValue({ id: "user-1", passwordHash: "hashed-pw" } as never);
+    mockedVerifyPasswordHash.mockResolvedValue(true);
+
+    await login({ email: "a@example.com", password: "pw", next: "//evil.com" });
+
+    expect(mockedRedirect).toHaveBeenCalledWith("/dashboard");
+  });
 });
 
 describe("logout", () => {
@@ -171,6 +207,11 @@ describe("logout", () => {
 
   it("falls back to / for a protocol-relative URL", async () => {
     await logout("//evil.com");
+    expect(mockedRedirect).toHaveBeenCalledWith("/");
+  });
+
+  it("ignores a backslash fallback that browsers treat as protocol-relative", async () => {
+    await logout("/\\evil.com");
     expect(mockedRedirect).toHaveBeenCalledWith("/");
   });
 });

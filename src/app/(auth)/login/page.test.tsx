@@ -1,79 +1,43 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { login } from "@/server/actions/auth";
 import LoginPage from "./page";
 
-vi.mock("@/server/actions/auth", () => ({
-  login: vi.fn(),
+// The form itself is covered in components/login-form.test.tsx -- stub it so
+// this only checks what the page does with the search params.
+vi.mock("@/components/login-form", () => ({
+  LoginForm: ({ next, defaultEmail }: { next?: string | null; defaultEmail?: string }) => (
+    <div>
+      <span data-testid="next">{String(next)}</span>
+      <span data-testid="email">{String(defaultEmail)}</span>
+    </div>
+  ),
 }));
 
-const mockedLogin = vi.mocked(login);
+async function renderWith(searchParams: Record<string, string | string[] | undefined>) {
+  const page = await LoginPage({ searchParams: Promise.resolve(searchParams) } as never);
+  render(page);
+}
 
 describe("LoginPage", () => {
-  it("shows a validation error for an invalid email", async () => {
-    const user = userEvent.setup();
-    render(<LoginPage />);
-
-    await user.type(screen.getByLabelText("Email"), "not-an-email");
-    await user.click(screen.getByRole("button", { name: "Log in" }));
-
-    expect(
-      await screen.findByText("Enter a valid email address"),
-    ).toBeInTheDocument();
-    expect(mockedLogin).not.toHaveBeenCalled();
+  it("passes a safe next path and the email through to the form", async () => {
+    await renderWith({ next: "/invite/abc", email: "bob@example.com" });
+    expect(screen.getByTestId("next")).toHaveTextContent("/invite/abc");
+    expect(screen.getByTestId("email")).toHaveTextContent("bob@example.com");
   });
 
-  it("shows a validation error for a password that's too short", async () => {
-    const user = userEvent.setup();
-    render(<LoginPage />);
-
-    await user.type(screen.getByLabelText("Email"), "jane@example.com");
-    await user.type(screen.getByLabelText("Password"), "short");
-    await user.click(screen.getByRole("button", { name: "Log in" }));
-
-    expect(
-      await screen.findByText("Password must be at least 8 characters"),
-    ).toBeInTheDocument();
+  it("drops an off-site next path", async () => {
+    await renderWith({ next: "https://evil.com" });
+    expect(screen.getByTestId("next")).toHaveTextContent("null");
   });
 
-  it("calls login with the form values on valid submit", async () => {
-    mockedLogin.mockResolvedValue(undefined as never);
-    const user = userEvent.setup();
-    render(<LoginPage />);
-
-    await user.type(screen.getByLabelText("Email"), "jane@example.com");
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.click(screen.getByRole("button", { name: "Log in" }));
-
-    expect(mockedLogin).toHaveBeenCalledWith({
-      email: "jane@example.com",
-      password: "password123",
-    });
+  it("uses the first value of a repeated param", async () => {
+    await renderWith({ next: ["/invite/abc", "/other"] });
+    expect(screen.getByTestId("next")).toHaveTextContent("/invite/abc");
   });
 
-  it("shows the server-returned error message", async () => {
-    mockedLogin.mockResolvedValue({ error: "Invalid email or password." });
-    const user = userEvent.setup();
-    render(<LoginPage />);
-
-    await user.type(screen.getByLabelText("Email"), "jane@example.com");
-    await user.type(screen.getByLabelText("Password"), "password123");
-    await user.click(screen.getByRole("button", { name: "Log in" }));
-
-    expect(
-      await screen.findByText("Invalid email or password."),
-    ).toBeInTheDocument();
-  });
-
-  it("links to the forgot password and signup pages", () => {
-    render(<LoginPage />);
-    expect(
-      screen.getByRole("link", { name: "Forgot password?" }),
-    ).toHaveAttribute("href", "/forgot-password");
-    expect(screen.getByRole("link", { name: "Sign up" })).toHaveAttribute(
-      "href",
-      "/signup",
-    );
+  it("passes nothing when there are no params", async () => {
+    await renderWith({});
+    expect(screen.getByTestId("next")).toHaveTextContent("null");
+    expect(screen.getByTestId("email")).toHaveTextContent("undefined");
   });
 });

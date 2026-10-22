@@ -11,6 +11,11 @@ export default defineConfig({
       // src/lib/session.ts reads this at module-load time; needs to exist
       // before any test file imports it. Not a real secret.
       SESSION_SECRET: "test-only-session-secret-not-used-anywhere-real",
+      // src/lib/email.tsx reads these at module-load time too. Not a real
+      // key -- the Resend client itself is mocked in email.test.ts, so this
+      // only needs to exist, never actually authenticate.
+      RESEND_API_KEY: "test-only-resend-api-key-not-used-anywhere-real",
+      RESEND_FROM_EMAIL: "Mini Linear <test@example.com>",
     },
   },
 });

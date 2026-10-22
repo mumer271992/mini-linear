@@ -3,6 +3,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@/server/db";
 import { findRoleByName } from "@/server/db/role";
+import { normalizeString } from "@/lib/string";
 
 export async function findOrganizationBySlug(slug: string) {
   return prisma.organization.findUnique({
@@ -53,7 +54,10 @@ export async function getOrganizationsForUser(userId: string) {
   return memberships.map((membership) => membership.organization);
 }
 
-export async function getOrganizationMembers(organizationSlug: string) {
+// cache()-wrapped for the same reason as findProjectBySlug -- multiple
+// Server Components within one request (a layout and its nested pages) each
+// need this independently, and this dedupes them to a single query.
+export const getOrganizationMembers = cache(async (organizationSlug: string) => {
   const organization = await findOrganizationBySlug(organizationSlug);
   if (!organization) {
     throw new Error("Organization not found.");
@@ -66,7 +70,32 @@ export async function getOrganizationMembers(organizationSlug: string) {
   });
 
   return memberships.map((membership) => membership.user);
-}
+});
+
+// Separate from getOrganizationMembers (which feeds assignee pickers and only
+// needs users) -- the members page lists memberships, so `id` is the
+// membership id: revoking access deletes the membership, not the user.
+export const getOrganizationMembersWithRoles = cache(async (organizationSlug: string) => {
+  const organization = await findOrganizationBySlug(organizationSlug);
+  if (!organization) {
+    throw new Error("Organization not found.");
+  }
+
+  const memberships = await prisma.membership.findMany({
+    where: { organizationId: organization.id },
+    include: {
+      user: { select: { name: true } },
+      role: { select: { name: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return memberships.map((membership) => ({
+    id: membership.id,
+    name: membership.user.name,
+    role: membership.role.name,
+  }));
+});
 
 // For validating a *target* user (e.g. an assignee picked from a dropdown),
 // as opposed to requireMembership which checks the acting/session user and
@@ -87,6 +116,27 @@ export async function isOrganizationMember(
         userId,
         organizationId: organization.id,
       },
+    },
+  });
+
+  return membership !== null;
+}
+
+// Same idea as isOrganizationMember, but keyed by email -- for invites, where
+// the person being added may or may not have an account yet.
+export async function isEmailOrganizationMember(
+  email: string,
+  organizationSlug: string,
+) {
+  const organization = await findOrganizationBySlug(organizationSlug);
+  if (!organization) {
+    return false;
+  }
+
+  const membership = await prisma.membership.findFirst({
+    where: {
+      organizationId: organization.id,
+      user: { email: normalizeString(email) },
     },
   });
 
@@ -135,9 +185,9 @@ export const requireMembership = cache(
   },
 );
 
-// Membership alone only proves the user belongs to the organization -- this
-// checks whether their specific role is actually allowed to do this action.
-export function requirePermission(
+// Non-throwing check, for UI that should only render for some roles (e.g.
+// hiding an invite button). Actions still go through requirePermission.
+export function hasPermission(
   membership: Awaited<ReturnType<typeof requireMembership>>,
   permission: string,
 ) {
@@ -145,7 +195,16 @@ export function requirePermission(
     ? membership.role.permissions
     : [];
 
-  if (!permissions.includes(permission)) {
+  return permissions.includes(permission);
+}
+
+// Membership alone only proves the user belongs to the organization -- this
+// checks whether their specific role is actually allowed to do this action.
+export function requirePermission(
+  membership: Awaited<ReturnType<typeof requireMembership>>,
+  permission: string,
+) {
+  if (!hasPermission(membership, permission)) {
     throw new Error("You do not have permission to perform this action.");
   }
 }

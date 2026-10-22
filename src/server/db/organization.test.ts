@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/server/db";
 import {
   getOrganizationMembers,
+  getOrganizationMembersWithRoles,
+  hasPermission,
+  isEmailOrganizationMember,
   isOrganizationMember,
   requireMembership,
   requirePermission,
@@ -10,13 +13,14 @@ import {
 vi.mock("@/server/db", () => ({
   prisma: {
     organization: { findUnique: vi.fn() },
-    membership: { findUnique: vi.fn(), findMany: vi.fn() },
+    membership: { findUnique: vi.fn(), findMany: vi.fn(), findFirst: vi.fn() },
   },
 }));
 
 const mockedFindOrganization = vi.mocked(prisma.organization.findUnique);
 const mockedFindMembership = vi.mocked(prisma.membership.findUnique);
 const mockedFindManyMemberships = vi.mocked(prisma.membership.findMany);
+const mockedFindFirstMembership = vi.mocked(prisma.membership.findFirst);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -97,6 +101,33 @@ describe("getOrganizationMembers", () => {
   });
 });
 
+describe("getOrganizationMembersWithRoles", () => {
+  it("throws when the organization doesn't exist", async () => {
+    mockedFindOrganization.mockResolvedValue(null);
+
+    await expect(getOrganizationMembersWithRoles("no-such-org")).rejects.toThrow(
+      "Organization not found.",
+    );
+    expect(mockedFindManyMemberships).not.toHaveBeenCalled();
+  });
+
+  it("returns each membership with the user's name and role name", async () => {
+    mockedFindOrganization.mockResolvedValue({ id: "org-1" } as never);
+    mockedFindManyMemberships.mockResolvedValue([
+      { id: "membership-1", user: { name: "Alice" }, role: { name: "owner" } },
+      { id: "membership-2", user: { name: "Bob" }, role: { name: "member" } },
+    ] as never);
+
+    await expect(getOrganizationMembersWithRoles("acme")).resolves.toEqual([
+      { id: "membership-1", name: "Alice", role: "owner" },
+      { id: "membership-2", name: "Bob", role: "member" },
+    ]);
+    expect(mockedFindManyMemberships).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { organizationId: "org-1" } }),
+    );
+  });
+});
+
 describe("requirePermission", () => {
   const membershipWith = (permissions: unknown) =>
     ({ role: { permissions } }) as Parameters<typeof requirePermission>[0];
@@ -117,5 +148,48 @@ describe("requirePermission", () => {
     expect(() =>
       requirePermission(membershipWith(null), "project:create"),
     ).toThrow("You do not have permission to perform this action.");
+  });
+});
+
+describe("hasPermission", () => {
+  const membershipWith = (permissions: unknown) =>
+    ({ role: { permissions } }) as Parameters<typeof hasPermission>[0];
+
+  it("returns true when the permission is present", () => {
+    expect(hasPermission(membershipWith(["member:invite"]), "member:invite")).toBe(true);
+  });
+
+  it("returns false when the permission is missing", () => {
+    expect(hasPermission(membershipWith(["project:read"]), "member:invite")).toBe(false);
+  });
+
+  it("returns false rather than crashing when permissions isn't a real array", () => {
+    expect(hasPermission(membershipWith(null), "member:invite")).toBe(false);
+  });
+});
+
+describe("isEmailOrganizationMember", () => {
+  it("returns false when the organization doesn't exist", async () => {
+    mockedFindOrganization.mockResolvedValue(null);
+
+    expect(await isEmailOrganizationMember("bob@example.com", "no-such-org")).toBe(false);
+    expect(mockedFindFirstMembership).not.toHaveBeenCalled();
+  });
+
+  it("looks up a membership by normalized user email within the organization", async () => {
+    mockedFindOrganization.mockResolvedValue({ id: "org-1" } as never);
+    mockedFindFirstMembership.mockResolvedValue({ id: "membership-1" } as never);
+
+    expect(await isEmailOrganizationMember(" Bob@Example.com ", "acme")).toBe(true);
+    expect(mockedFindFirstMembership).toHaveBeenCalledWith({
+      where: { organizationId: "org-1", user: { email: "bob@example.com" } },
+    });
+  });
+
+  it("returns false when no membership matches", async () => {
+    mockedFindOrganization.mockResolvedValue({ id: "org-1" } as never);
+    mockedFindFirstMembership.mockResolvedValue(null);
+
+    expect(await isEmailOrganizationMember("bob@example.com", "acme")).toBe(false);
   });
 });

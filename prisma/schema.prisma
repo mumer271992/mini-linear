@@ -22,6 +22,7 @@ model User {
   sessions         Session[]
   assignedProjects Project[]
   assignedTasks    Task[]
+  sentInvites      Invite[]
 
   @@map("users")
 }
@@ -36,6 +37,7 @@ model Organization {
   memberships Membership[]
   sessions    Session[]
   projects    Project[]
+  invites     Invite[]
 
   @@map("organizations")
 }
@@ -48,6 +50,7 @@ model Role {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   memberships Membership[]
+  invites     Invite[]
 
   @@map("roles")
 }
@@ -143,4 +146,32 @@ model Task {
 
   @@index([projectId])
   @@map("tasks")
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+model Invite {
+  id             String       @id @default(uuid())
+  email          String
+  organizationId String       @map("organization_id")
+  roleId         String       @map("role_id")
+  invitedById    String       @map("invited_by_id")
+  token          String       @unique
+  status         InviteStatus @default(PENDING)
+  expiresAt      DateTime     @map("expires_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  invitedBy    User         @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  // One invite row per org+email -- re-inviting the same address updates the
+  // existing row (fresh token, fresh expiry) instead of creating a duplicate.
+  @@unique([organizationId, email])
+  @@map("invites")
 }

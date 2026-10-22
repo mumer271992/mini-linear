@@ -16,6 +16,10 @@ const roles = [
       "task:read",
       "task:update",
       "task:delete",
+      "member:invite",
+      "member:remove",
+      "invite:read",
+      "invite:revoke",
     ],
   },
   {

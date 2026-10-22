@@ -5,11 +5,15 @@ import { generatePasswordHash, verifyPasswordHash } from "@/lib/auth";
 import { createSession, deleteSession } from "@/server/db/session";
 import { createUserWithEmail, findUserByEmail } from "@/server/db/user";
 import { Prisma } from "@/generated/prisma/client";
+import { getSafeRedirectPath } from "@/lib/redirect";
 
 interface SignupRequest {
   name: string;
   email: string;
   password: string;
+  // Where to go after signing up (e.g. back to an invite). Validated here --
+  // anything that isn't a same-origin path falls back to /dashboard.
+  next?: string;
 }
 
 interface SignupResult {
@@ -55,12 +59,14 @@ export async function signup(formData: SignupRequest): Promise<SignupResult> {
 
   await createSession(user.id);
 
-  redirect("/dashboard");
+  redirect(getSafeRedirectPath(formData.next) ?? "/dashboard");
 }
 
 interface LoginRequest {
   email: string;
   password: string;
+  // Same as SignupRequest.next.
+  next?: string;
 }
 
 interface LoginResult {
@@ -91,20 +97,13 @@ export async function login(formData: LoginRequest): Promise<LoginResult> {
 
   await createSession(user.id);
 
-  redirect("/dashboard");
+  redirect(getSafeRedirectPath(formData.next) ?? "/dashboard");
 }
 
 export async function logout(fallbackPath?: string) {
   await deleteSession();
 
-  // Only follow the caller-supplied path if it's a genuine relative,
-  // same-origin path -- otherwise a value like "https://evil.com" or
-  // "//evil.com" (protocol-relative) passed into redirect() would send the
-  // user to an external site right after a trusted first-party action.
-  const isSafeRelativePath =
-    !!fallbackPath &&
-    fallbackPath.startsWith("/") &&
-    !fallbackPath.startsWith("//");
-
-  redirect(isSafeRelativePath ? fallbackPath : "/");
+  // Only follow the caller-supplied path if it's same-origin -- see
+  // getSafeRedirectPath for what that rules out.
+  redirect(getSafeRedirectPath(fallbackPath) ?? "/");
 }

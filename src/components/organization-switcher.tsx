@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { logout } from "@/server/actions/auth";
 
 interface OrganizationOption {
   id: string;
@@ -12,11 +13,13 @@ interface OrganizationOption {
 interface OrganizationSwitcherProps {
   organizations: OrganizationOption[];
   currentOrganizationId: string;
+  userEmail: string;
 }
 
 export function OrganizationSwitcher({
   organizations,
   currentOrganizationId,
+  userEmail,
 }: OrganizationSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,6 +82,27 @@ export function OrganizationSwitcher({
           >
             Create new organization
           </Link>
+
+          <div className="my-1 border-t border-white/10" />
+
+          <Link
+            href={`/dashboard/${currentOrganization?.slug}/settings/account`}
+            onClick={() => setIsOpen(false)}
+            className="block truncate rounded-md px-3 py-2 text-xs text-zinc-400 hover:bg-zinc-800"
+          >
+            {userEmail}
+          </Link>
+          {/* Wrapped rather than passed directly: a form action receives
+              FormData as its first argument, which logout would take as its
+              fallbackPath. */}
+          <form action={async () => logout()}>
+            <button
+              type="submit"
+              className="block w-full cursor-pointer rounded-md px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-800"
+            >
+              Log out
+            </button>
+          </form>
         </div>
       )}
 

@@ -32,7 +32,10 @@ export async function createSession(userId: string) {
   });
 }
 
-export const verifySession = cache(async () => {
+// For pages that render for both logged-in and logged-out visitors (e.g. the
+// invite accept page): returns null instead of redirecting. A stale cookie is
+// just treated as logged out here -- logging in again overwrites it.
+export const getOptionalSession = cache(async () => {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
@@ -42,6 +45,20 @@ export const verifySession = cache(async () => {
     : null;
 
   if (!session || session.expiresAt < new Date()) {
+    return null;
+  }
+
+  return {
+    sessionId: session.id,
+    userId: session.userId,
+    lastOrganizationId: session.lastOrganizationId,
+  };
+});
+
+export const verifySession = cache(async () => {
+  const session = await getOptionalSession();
+
+  if (!session) {
     // Redirect to a Route Handler rather than clearing the cookie here —
     // cookie mutation isn't allowed during a Server Component render, so a
     // direct delete would silently fail. The Route Handler's response can
@@ -50,11 +67,7 @@ export const verifySession = cache(async () => {
     redirect("/api/auth/clear-session");
   }
 
-  return {
-    sessionId: session.id,
-    userId: session.userId,
-    lastOrganizationId: session.lastOrganizationId,
-  };
+  return session;
 });
 
 export async function setSessionOrganization(

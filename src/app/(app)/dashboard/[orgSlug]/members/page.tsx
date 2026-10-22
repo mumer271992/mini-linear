@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { verifySession } from "@/server/db/session";
 import {
   getOrganizationMembersWithRoles,
@@ -16,6 +17,11 @@ export default async function MembersPage({
 
   // Membership check first, so non-members never get the member list.
   const membership = await requireMembership(session.userId, orgSlug);
+  // 404 rather than "forbidden" -- roles without member:read shouldn't learn
+  // the page exists. The sidebar hides the link for them too.
+  if (!hasPermission(membership, "member:read")) {
+    notFound();
+  }
   const members = await getOrganizationMembersWithRoles(orgSlug);
 
   return (
@@ -27,7 +33,12 @@ export default async function MembersPage({
         {hasPermission(membership, "member:invite") && <InviteMemberButton orgSlug={orgSlug} />}
       </div>
 
-      <MembersTable members={members} />
+      <MembersTable
+        orgSlug={orgSlug}
+        members={members}
+        currentMembershipId={membership.id}
+        canRemove={hasPermission(membership, "member:remove")}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { verifySession } from "@/server/db/session";
-import { requireOrganization } from "@/server/db/organization";
+import { hasPermission, requireMembership, requireOrganization } from "@/server/db/organization";
 import { findUserById } from "@/server/db/user";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
 
@@ -10,9 +10,10 @@ interface SidebarProps {
 
 export async function Sidebar({ orgSlug }: SidebarProps) {
   const session = await verifySession();
-  const [organizations, user] = await Promise.all([
+  const [organizations, user, membership] = await Promise.all([
     requireOrganization(session.userId),
     findUserById(session.userId),
+    requireMembership(session.userId, orgSlug),
   ]);
   const currentOrganization = organizations.find(
     (organization) => organization.slug === orgSlug,
@@ -39,12 +40,15 @@ export async function Sidebar({ orgSlug }: SidebarProps) {
         >
           Projects
         </Link>
-        <Link
-          href={`/dashboard/${orgSlug}/members`}
-          className="rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
-        >
-          Members
-        </Link>
+        {/* Members page 404s without member:read -- don't link to it. */}
+        {hasPermission(membership, "member:read") && (
+          <Link
+            href={`/dashboard/${orgSlug}/members`}
+            className="rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
+          >
+            Members
+          </Link>
+        )}
       </nav>
 
       {currentOrganization && user && (

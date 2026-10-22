@@ -185,6 +185,20 @@ export const requireMembership = cache(
   },
 );
 
+// Scoped by organization as well as id, so a membership id belonging to some
+// other org can't be deleted through this org's slug. Throws P2025 if no
+// matching row exists (already removed, or not in this org).
+export async function deleteMembership(organizationSlug: string, membershipId: string) {
+  const organization = await findOrganizationBySlug(organizationSlug);
+  if (!organization) {
+    throw new Error("Organization not found.");
+  }
+
+  return prisma.membership.delete({
+    where: { id: membershipId, organizationId: organization.id },
+  });
+}
+
 // Non-throwing check, for UI that should only render for some roles (e.g.
 // hiding an invite button). Actions still go through requirePermission.
 export function hasPermission(

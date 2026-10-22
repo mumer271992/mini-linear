@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { notFound } from "next/navigation";
 import { verifySession } from "@/server/db/session";
 import {
   getOrganizationMembersWithRoles,
@@ -8,6 +9,11 @@ import {
 } from "@/server/db/organization";
 import MembersPage from "./page";
 
+vi.mock("next/navigation", () => ({
+  notFound: vi.fn(() => {
+    throw new Error("NEXT_NOT_FOUND");
+  }),
+}));
 vi.mock("@/server/db/session", () => ({ verifySession: vi.fn() }));
 vi.mock("@/server/db/organization", () => ({
   getOrganizationMembersWithRoles: vi.fn(),
@@ -17,6 +23,9 @@ vi.mock("@/server/db/organization", () => ({
 // InviteMemberButton has its own coverage (and needs the router) -- stub it.
 vi.mock("@/components/invite-member-button", () => ({
   InviteMemberButton: () => <button type="button">+ New Member</button>,
+}));
+vi.mock("@/components/revoke-member-button", () => ({
+  RevokeMemberButton: () => <button type="button">Revoke access</button>,
 }));
 
 const mockedVerifySession = vi.mocked(verifySession);
@@ -33,6 +42,7 @@ async function renderPage() {
 
 describe("MembersPage", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     mockedVerifySession.mockResolvedValue({
       sessionId: "session-1",
       userId: "user-1",
@@ -54,8 +64,15 @@ describe("MembersPage", () => {
     expect(screen.getByRole("button", { name: "+ New Member" })).toBeInTheDocument();
   });
 
+  it("404s for roles without member:read, before fetching members", async () => {
+    mockedHasPermission.mockImplementation((_, permission) => permission !== "member:read");
+    await expect(renderPage()).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(notFound).toHaveBeenCalled();
+    expect(mockedGetMembers).not.toHaveBeenCalled();
+  });
+
   it("hides New Member for roles without member:invite", async () => {
-    mockedHasPermission.mockReturnValue(false);
+    mockedHasPermission.mockImplementation((_, permission) => permission !== "member:invite");
     await renderPage();
     expect(mockedHasPermission).toHaveBeenCalledWith({}, "member:invite");
     expect(screen.queryByRole("button", { name: "+ New Member" })).not.toBeInTheDocument();

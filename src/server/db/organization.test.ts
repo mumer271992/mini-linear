@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/server/db";
 import {
+  deleteMembership,
   getOrganizationMembers,
   getOrganizationMembersWithRoles,
   hasPermission,
@@ -13,7 +14,12 @@ import {
 vi.mock("@/server/db", () => ({
   prisma: {
     organization: { findUnique: vi.fn() },
-    membership: { findUnique: vi.fn(), findMany: vi.fn(), findFirst: vi.fn() },
+    membership: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      delete: vi.fn(),
+    },
   },
 }));
 
@@ -21,6 +27,7 @@ const mockedFindOrganization = vi.mocked(prisma.organization.findUnique);
 const mockedFindMembership = vi.mocked(prisma.membership.findUnique);
 const mockedFindManyMemberships = vi.mocked(prisma.membership.findMany);
 const mockedFindFirstMembership = vi.mocked(prisma.membership.findFirst);
+const mockedDeleteMembership = vi.mocked(prisma.membership.delete);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -125,6 +132,28 @@ describe("getOrganizationMembersWithRoles", () => {
     expect(mockedFindManyMemberships).toHaveBeenCalledWith(
       expect.objectContaining({ where: { organizationId: "org-1" } }),
     );
+  });
+});
+
+describe("deleteMembership", () => {
+  it("throws when the organization doesn't exist", async () => {
+    mockedFindOrganization.mockResolvedValue(null);
+
+    await expect(deleteMembership("no-such-org", "membership-2")).rejects.toThrow(
+      "Organization not found.",
+    );
+    expect(mockedDeleteMembership).not.toHaveBeenCalled();
+  });
+
+  it("deletes the membership scoped to the organization", async () => {
+    mockedFindOrganization.mockResolvedValue({ id: "org-1" } as never);
+    mockedDeleteMembership.mockResolvedValue({} as never);
+
+    await deleteMembership("acme", "membership-2");
+
+    expect(mockedDeleteMembership).toHaveBeenCalledWith({
+      where: { id: "membership-2", organizationId: "org-1" },
+    });
   });
 });
 

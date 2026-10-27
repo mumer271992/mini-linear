@@ -186,16 +186,43 @@ export const requireMembership = cache(
 );
 
 // Scoped by organization as well as id, so a membership id belonging to some
-// other org can't be deleted through this org's slug. Throws P2025 if no
-// matching row exists (already removed, or not in this org).
-export async function deleteMembership(organizationSlug: string, membershipId: string) {
-  const organization = await findOrganizationBySlug(organizationSlug);
-  if (!organization) {
-    throw new Error("Organization not found.");
-  }
+// other org reads as missing rather than leaking that org's member.
+export async function findMembershipInOrganization(organizationId: string, membershipId: string) {
+  return prisma.membership.findUnique({
+    where: { id: membershipId, organizationId },
+    include: { role: true },
+  });
+}
 
-  return prisma.membership.delete({
-    where: { id: membershipId, organizationId: organization.id },
+// Scoped by organization as well as id, so a membership id belonging to some
+// other org can't be deleted through this org. Owner memberships are
+// excluded too, so a role change racing the caller's own check still can't
+// remove an Owner. Throws P2025 if no matching row exists.
+// Also clears the user's task and project assignments in this org, in the
+// same transaction, so a revoke never leaves work assigned to someone who can
+// no longer see it. Their assignments in other orgs are untouched.
+export async function deleteMembership(organizationId: string, membershipId: string) {
+  return prisma.$transaction(async (tx) => {
+    // Delete first: a P2025 here rolls the transaction back before anything
+    // is unassigned.
+    const membership = await tx.membership.delete({
+      where: {
+        id: membershipId,
+        organizationId,
+        role: { name: { not: "Owner" } },
+      },
+    });
+
+    await tx.task.updateMany({
+      where: { assignedToId: membership.userId, project: { organizationId } },
+      data: { assignedToId: null },
+    });
+    await tx.project.updateMany({
+      where: { assignedToId: membership.userId, organizationId },
+      data: { assignedToId: null },
+    });
+
+    return membership;
   });
 }
 

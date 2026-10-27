@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PlusIcon } from "@heroicons/react/20/solid";
 import { verifySession } from "@/server/db/session";
 import { requireMembership } from "@/server/db/organization";
 import { getProjectsForOrganization } from "@/server/db/project";
@@ -30,9 +31,7 @@ export default async function ProjectsPage({
           href={`/dashboard/${orgSlug}/projects/create`}
           className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
         >
-          <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-            <path d="M10 4a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 10 4Z" />
-          </svg>
+          <PlusIcon className="h-4 w-4" />
           New Project
         </Link>
       </div>

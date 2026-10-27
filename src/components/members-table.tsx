@@ -1,4 +1,3 @@
-import { Tooltip } from "@/components/ui/tooltip";
 import { RevokeMemberButton } from "@/components/revoke-member-button";
 
 interface Member {
@@ -12,6 +11,7 @@ interface MembersTableProps {
   members: Member[];
   // The viewer's own membership -- their row gets no revoke button, since
   // removing yourself isn't allowed (the revoke action must enforce this too).
+  // Owner rows get none either, since Owners can't be revoked.
   currentMembershipId?: string;
   // Display only -- the revoke action re-checks member:remove server-side.
   canRemove?: boolean;
@@ -53,14 +53,12 @@ export function MembersTable({
                 </td>
                 <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{member.role}</td>
                 <td className="px-4 py-3">
-                  {canRemove && member.id !== currentMembershipId && (
-                    <Tooltip label="Revoke access" side="left">
-                      <RevokeMemberButton
-                        orgSlug={orgSlug}
-                        membershipId={member.id}
-                        memberName={member.name}
-                      />
-                    </Tooltip>
+                  {canRemove && member.id !== currentMembershipId && member.role !== "Owner" && (
+                    <RevokeMemberButton
+                      orgSlug={orgSlug}
+                      membershipId={member.id}
+                      memberName={member.name}
+                    />
                   )}
                 </td>
               </tr>

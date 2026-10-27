@@ -11,8 +11,8 @@ import {
   requirePermission,
 } from "./organization";
 
-vi.mock("@/server/db", () => ({
-  prisma: {
+vi.mock("@/server/db", () => {
+  const prisma = {
     organization: { findUnique: vi.fn() },
     membership: {
       findUnique: vi.fn(),
@@ -20,14 +20,21 @@ vi.mock("@/server/db", () => ({
       findFirst: vi.fn(),
       delete: vi.fn(),
     },
-  },
-}));
+    task: { updateMany: vi.fn() },
+    project: { updateMany: vi.fn() },
+    // Runs the callback against the same mocks, so tx.* calls land on them.
+    $transaction: vi.fn((callback: (tx: unknown) => unknown) => callback(prisma)),
+  };
+  return { prisma };
+});
 
 const mockedFindOrganization = vi.mocked(prisma.organization.findUnique);
 const mockedFindMembership = vi.mocked(prisma.membership.findUnique);
 const mockedFindManyMemberships = vi.mocked(prisma.membership.findMany);
 const mockedFindFirstMembership = vi.mocked(prisma.membership.findFirst);
 const mockedDeleteMembership = vi.mocked(prisma.membership.delete);
+const mockedUpdateManyTasks = vi.mocked(prisma.task.updateMany);
+const mockedUpdateManyProjects = vi.mocked(prisma.project.updateMany);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -136,24 +143,41 @@ describe("getOrganizationMembersWithRoles", () => {
 });
 
 describe("deleteMembership", () => {
-  it("throws when the organization doesn't exist", async () => {
-    mockedFindOrganization.mockResolvedValue(null);
+  it("deletes the membership scoped to the organization, excluding Owners", async () => {
+    mockedDeleteMembership.mockResolvedValue({ userId: "user-2" } as never);
 
-    await expect(deleteMembership("no-such-org", "membership-2")).rejects.toThrow(
-      "Organization not found.",
-    );
-    expect(mockedDeleteMembership).not.toHaveBeenCalled();
-  });
-
-  it("deletes the membership scoped to the organization", async () => {
-    mockedFindOrganization.mockResolvedValue({ id: "org-1" } as never);
-    mockedDeleteMembership.mockResolvedValue({} as never);
-
-    await deleteMembership("acme", "membership-2");
+    await deleteMembership("org-1", "membership-2");
 
     expect(mockedDeleteMembership).toHaveBeenCalledWith({
-      where: { id: "membership-2", organizationId: "org-1" },
+      where: {
+        id: "membership-2",
+        organizationId: "org-1",
+        role: { name: { not: "Owner" } },
+      },
     });
+  });
+
+  it("unassigns the removed user's tasks and projects in this organization only", async () => {
+    mockedDeleteMembership.mockResolvedValue({ userId: "user-2" } as never);
+
+    await deleteMembership("org-1", "membership-2");
+
+    expect(mockedUpdateManyTasks).toHaveBeenCalledWith({
+      where: { assignedToId: "user-2", project: { organizationId: "org-1" } },
+      data: { assignedToId: null },
+    });
+    expect(mockedUpdateManyProjects).toHaveBeenCalledWith({
+      where: { assignedToId: "user-2", organizationId: "org-1" },
+      data: { assignedToId: null },
+    });
+  });
+
+  it("unassigns nothing when the membership can't be deleted", async () => {
+    mockedDeleteMembership.mockRejectedValue(new Error("Record not found"));
+
+    await expect(deleteMembership("org-1", "membership-2")).rejects.toThrow("Record not found");
+    expect(mockedUpdateManyTasks).not.toHaveBeenCalled();
+    expect(mockedUpdateManyProjects).not.toHaveBeenCalled();
   });
 });
 

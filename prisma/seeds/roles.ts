@@ -1,8 +1,9 @@
 import type { PrismaClient } from "../../src/generated/prisma/client";
+import { OWNER_ROLE_NAME } from "../../src/lib/organization";
 
 const roles = [
   {
-    name: "Owner",
+    name: OWNER_ROLE_NAME,
     permissions: [
       "organization:create",
       "organization:read",

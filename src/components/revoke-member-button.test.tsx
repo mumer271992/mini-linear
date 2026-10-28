@@ -62,6 +62,7 @@ describe("RevokeMemberButton", () => {
   });
 
   it("shows a generic error and re-enables the button when the action throws", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     mockedRevokeMembership.mockRejectedValue(new Error("You do not have permission to perform this action."));
     const user = userEvent.setup();
 
@@ -71,6 +72,7 @@ describe("RevokeMemberButton", () => {
     expect(toast.error).toHaveBeenCalledWith(
       "Couldn't remove this member. Refresh the page and try again.",
     );
+    expect(consoleError).toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
     expect(button).toBeEnabled();
   });

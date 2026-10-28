@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { getTaskStatusOption } from "@/lib/task";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
+import { Spinner } from "@/components/ui/spinner";
 import { EditTaskForm } from "@/components/edit-task-form";
 import { deleteTask } from "@/server/actions/task";
 import type { getTasksForProject } from "@/server/db/task";
@@ -21,6 +22,10 @@ interface TaskListProps {
 
 export function TaskList({ orgSlug, projectSlug, tasks, members }: TaskListProps) {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  // Same pending guard as RevokeMemberButton: stops a second click from
+  // sending a duplicate delete. On success the row disappears with the
+  // refresh, so this is only reset on error.
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const router = useRouter();
 
   // Same close-always-refreshes wiring as AddTaskButton: covers Escape,
@@ -38,15 +43,20 @@ export function TaskList({ orgSlug, projectSlug, tasks, members }: TaskListProps
 
     // Thrown errors (e.g. the caller lost their membership or permission since
     // the page loaded) are caught too, so they surface instead of going unhandled.
+    setDeletingTaskId(task.id);
+
     let result: Awaited<ReturnType<typeof deleteTask>>;
     try {
       result = await deleteTask(orgSlug, projectSlug, task.id);
-    } catch {
+    } catch (error) {
+      console.error(error);
+      setDeletingTaskId(null);
       toast.error("Couldn't delete this task. Refresh the page and try again.");
       return;
     }
 
     if (result?.error) {
+      setDeletingTaskId(null);
       toast.error(result.error);
       return;
     }
@@ -106,10 +116,15 @@ export function TaskList({ orgSlug, projectSlug, tasks, members }: TaskListProps
                       <button
                         type="button"
                         onClick={() => handleDelete(task)}
+                        disabled={deletingTaskId === task.id}
                         aria-label={`Delete ${task.title}`}
-                        className="cursor-pointer text-zinc-500 hover:text-red-600"
+                        className="cursor-pointer text-zinc-500 hover:text-red-600 disabled:cursor-not-allowed"
                       >
-                        <TrashIcon className="h-4 w-4" />
+                        {deletingTaskId === task.id ? (
+                          <Spinner />
+                        ) : (
+                          <TrashIcon className="h-4 w-4" />
+                        )}
                       </button>
                     </div>
                   </td>

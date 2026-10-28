@@ -170,6 +170,7 @@ describe("TaskList", () => {
   });
 
   it("shows a generic toast and does not refresh when delete throws", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const refresh = vi.fn();
     mockedUseRouter.mockReturnValue({ refresh } as never);
     vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -184,6 +185,24 @@ describe("TaskList", () => {
     expect(toast.error).toHaveBeenCalledWith(
       "Couldn't delete this task. Refresh the page and try again.",
     );
+    expect(consoleError).toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Delete Write copy" })).toBeEnabled();
+  });
+
+  it("disables the delete button while the delete is in flight", async () => {
+    mockedUseRouter.mockReturnValue({ refresh: vi.fn() } as never);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    // Never resolves, so the request stays pending for the assertion.
+    mockedDeleteTask.mockReturnValue(new Promise(() => {}));
+    const user = userEvent.setup();
+    render(
+      <TaskList orgSlug="acme" projectSlug="website-redesign" tasks={tasks as never} members={members} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete Write copy" }));
+
+    expect(screen.getByRole("button", { name: "Delete Write copy" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete Review designs" })).toBeEnabled();
   });
 });

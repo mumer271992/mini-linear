@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/server/db";
 import { findRoleByName } from "@/server/db/role";
 import { normalizeString } from "@/lib/string";
+import { OWNER_ROLE_NAME } from "@/lib/organization";
 
 export async function findOrganizationBySlug(slug: string) {
   return prisma.organization.findUnique({
@@ -20,7 +21,7 @@ interface CreateOrganizationData {
 export async function createOrganizationWithOwner(
   data: CreateOrganizationData,
 ) {
-  const ownerRole = await findRoleByName("Owner");
+  const ownerRole = await findRoleByName(OWNER_ROLE_NAME);
   if (!ownerRole) {
     throw new Error("Owner role is not seeded.");
   }
@@ -209,7 +210,7 @@ export async function deleteMembership(organizationId: string, membershipId: str
       where: {
         id: membershipId,
         organizationId,
-        role: { name: { not: "Owner" } },
+        role: { name: { not: OWNER_ROLE_NAME } },
       },
     });
 

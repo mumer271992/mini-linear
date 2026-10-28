@@ -8,6 +8,7 @@ import {
   requirePermission,
 } from "@/server/db/organization";
 import { isRecordNotFoundError } from "@/lib/prisma";
+import { OWNER_ROLE_NAME } from "@/lib/organization";
 
 interface MemberErrorResult {
   error: string;
@@ -34,7 +35,7 @@ export async function revokeMembership(
   if (!target) {
     return { error: "This member has already been removed." };
   }
-  if (target.role.name === "Owner") {
+  if (target.role.name === OWNER_ROLE_NAME) {
     return { error: "Owners can't be removed from the organization." };
   }
 

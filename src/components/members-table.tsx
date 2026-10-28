@@ -1,3 +1,4 @@
+import { OWNER_ROLE_NAME } from "@/lib/organization";
 import { RevokeMemberButton } from "@/components/revoke-member-button";
 
 interface Member {
@@ -53,7 +54,7 @@ export function MembersTable({
                 </td>
                 <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{member.role}</td>
                 <td className="px-4 py-3">
-                  {canRemove && member.id !== currentMembershipId && member.role !== "Owner" && (
+                  {canRemove && member.id !== currentMembershipId && member.role !== OWNER_ROLE_NAME && (
                     <RevokeMemberButton
                       orgSlug={orgSlug}
                       membershipId={member.id}

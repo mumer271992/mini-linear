@@ -32,7 +32,8 @@ export function RevokeMemberButton({ orgSlug, membershipId, memberName }: Revoke
     let result: Awaited<ReturnType<typeof revokeMembership>>;
     try {
       result = await revokeMembership(orgSlug, membershipId);
-    } catch {
+    } catch (error) {
+      console.error(error);
       setIsRevoking(false);
       toast.error("Couldn't remove this member. Refresh the page and try again.");
       return;

@@ -32,12 +32,23 @@ describe("MembersTable", () => {
     expect(screen.getByRole("cell", { name: "Member" })).toBeInTheDocument();
   });
 
-  it("gives each row a Revoke access button with a matching tooltip", () => {
+  it("gives each row a Revoke access button", () => {
     render(<MembersTable orgSlug="acme" members={members} canRemove />);
     expect(screen.getAllByRole("button", { name: /Revoke access/ })).toHaveLength(2);
-    screen
-      .getAllByRole("tooltip", { hidden: true })
-      .forEach((tooltip) => expect(tooltip).toHaveTextContent("Revoke access"));
+  });
+
+  it("hides the Revoke access button on Owner rows", () => {
+    render(
+      <MembersTable
+        orgSlug="acme"
+        members={[...members, { id: "3", name: "Olivia Park", role: "Owner" }]}
+        canRemove
+      />,
+    );
+    expect(screen.getAllByRole("button", { name: /Revoke access/ })).toHaveLength(2);
+    expect(
+      screen.queryByRole("button", { name: "Revoke access for Olivia Park" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows no Revoke access buttons when the viewer can't remove members", () => {

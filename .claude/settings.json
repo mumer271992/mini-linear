@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm run test*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run typecheck)",
+      "Bash(npx vitest *)",
+      "Bash(npx eslint *)",
+      "Bash(npx tsc --noEmit*)"
+    ],
+    "deny": [
+      "Bash(npm run migrate*)",
+      "Bash(npm run seed*)",
+      "Bash(./scripts/*)",
+      "Bash(bash scripts/*)",
+      "Bash(sh scripts/*)",
+      "Bash(psql)",
+      "Bash(psql *)",
+      "Bash(npx prisma migrate *)",
+      "Bash(npx prisma db *)",
+      "Bash(npx tsx prisma/seed.ts*)",
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.production)",
+      "Read(./.env.*.local)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // .tool_response.filePath // empty'); case \"$f\" in *.ts|*.tsx|*.js|*.mjs) ;; *) exit 0 ;; esac; cd \"${CLAUDE_PROJECT_DIR:-.}\" && out=$(npx eslint --no-warn-ignored --max-warnings 0 \"$f\" 2>&1) || { echo \"ESLint errors in $f:\" >&2; echo \"$out\" >&2; exit 2; }",
+            "timeout": 60,
+            "statusMessage": "Linting edited file..."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { deleteTask } from "@/server/actions/task";
 import { TaskList } from "./task-list";
 
@@ -11,6 +12,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/server/actions/task", () => ({
   deleteTask: vi.fn(),
 }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 // EditTaskForm has its own coverage -- stub it here so this file only tests
 // what's specific to TaskList: the edit/delete icon buttons and the
@@ -151,11 +153,10 @@ describe("TaskList", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it("shows an alert and does not refresh when delete fails", async () => {
+  it("shows a toast and does not refresh when delete fails", async () => {
     const refresh = vi.fn();
     mockedUseRouter.mockReturnValue({ refresh } as never);
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    vi.spyOn(window, "alert").mockImplementation(() => {});
     mockedDeleteTask.mockResolvedValue({ error: "This task no longer exists." });
     const user = userEvent.setup();
     render(
@@ -164,7 +165,44 @@ describe("TaskList", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete Write copy" }));
 
-    expect(window.alert).toHaveBeenCalledWith("This task no longer exists.");
+    expect(toast.error).toHaveBeenCalledWith("This task no longer exists.");
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("shows a generic toast and does not refresh when delete throws", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const refresh = vi.fn();
+    mockedUseRouter.mockReturnValue({ refresh } as never);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    mockedDeleteTask.mockRejectedValue(new Error("You do not have permission to perform this action."));
+    const user = userEvent.setup();
+    render(
+      <TaskList orgSlug="acme" projectSlug="website-redesign" tasks={tasks as never} members={members} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete Write copy" }));
+
+    expect(toast.error).toHaveBeenCalledWith(
+      "Couldn't delete this task. Refresh the page and try again.",
+    );
+    expect(consoleError).toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Delete Write copy" })).toBeEnabled();
+  });
+
+  it("disables the delete button while the delete is in flight", async () => {
+    mockedUseRouter.mockReturnValue({ refresh: vi.fn() } as never);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    // Never resolves, so the request stays pending for the assertion.
+    mockedDeleteTask.mockReturnValue(new Promise(() => {}));
+    const user = userEvent.setup();
+    render(
+      <TaskList orgSlug="acme" projectSlug="website-redesign" tasks={tasks as never} members={members} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete Write copy" }));
+
+    expect(screen.getByRole("button", { name: "Delete Write copy" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete Review designs" })).toBeEnabled();
   });
 });

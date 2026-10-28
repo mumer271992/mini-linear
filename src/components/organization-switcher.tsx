@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { CheckIcon, ChevronDownIcon } from "@heroicons/react/20/solid";
 import { logout } from "@/server/actions/auth";
 
 interface OrganizationOption {
@@ -56,17 +57,7 @@ export function OrganizationSwitcher({
                 >
                   <span className="truncate">{organization.name}</span>
                   {organization.id === currentOrganizationId && (
-                    <svg
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      className="h-4 w-4 shrink-0"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                    <CheckIcon className="h-4 w-4 shrink-0" />
                   )}
                 </Link>
               </li>
@@ -114,13 +105,7 @@ export function OrganizationSwitcher({
         className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
       >
         <span className="truncate">{currentOrganization?.name}</span>
-        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 shrink-0">
-          <path
-            fillRule="evenodd"
-            d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
-            clipRule="evenodd"
-          />
-        </svg>
+        <ChevronDownIcon className="h-4 w-4 shrink-0" />
       </button>
     </div>
   );

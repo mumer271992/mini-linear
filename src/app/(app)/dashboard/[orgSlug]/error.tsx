@@ -5,6 +5,9 @@ import { ErrorState, type ErrorStateProps } from "@/components/error-state";
 
 // Sits inside the [orgSlug] layout, so the sidebar stays usable and only the
 // main area is replaced -- the user can navigate away without a full reload.
+// Membership failures are deliberately NOT caught here: the layout's Sidebar
+// calls requireMembership, so a wrong or revoked slug throws past this
+// boundary to the root error page and no dashboard UI is shown.
 export default function DashboardError({ error, retry }: Pick<ErrorStateProps, "error" | "retry">) {
   const { orgSlug } = useParams<{ orgSlug: string }>();
 

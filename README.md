@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mini Linear
 
-## Getting Started
+A lightweight issue tracker for small teams: organizations, projects, and tasks
+that move from backlog to done.
 
-First, run the development server:
+**Live demo:** <!-- TODO: add deployed URL -->
+
+## Features
+
+- **Organizations** — create a workspace, switch between organizations from
+  the sidebar, and see task counts by status on the overview.
+- **Members and roles** — invite people by email (Resend), assign a role, and
+  revoke access. Owners can't be removed; revoking a member unassigns their
+  work.
+- **Projects** — status, priority, lead, and target date.
+- **Tasks** — assign, move through Backlog → Todo → In Progress → In Review →
+  Done, and filter by status or assignee.
+- **Role-based permissions** — every write is checked on the server, not just
+  hidden in the UI.
+
+## Tech stack
+
+Next.js 16 (App Router, Server Components, Server Actions) · React 19 ·
+TypeScript · Prisma + PostgreSQL (Supabase) · Tailwind CSS 4 ·
+react-hook-form + zod · Resend · Vitest + Testing Library · Vercel
+
+## Getting started
+
+Requirements: Node 22, a PostgreSQL database (the project uses Supabase), and
+a Resend account for invite emails.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env      # fill in the values -- each one is documented
+npm run seed              # seeds roles and their permissions
+npm run dev               # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Scripts
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the dev server |
+| `npm run test` | Run unit and component tests |
+| `npm run typecheck` | Type-check the project |
+| `npm run lint` | Lint |
+| `npm run migrate <name>` | Create and apply a migration (see `scripts/migrate.sh`) |
+| `npm run seed` | Seed or update roles and permissions (safe to re-run) |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Project structure
 
-## Learn More
+```
+src/app/            routes (marketing, auth, dashboard/[orgSlug]/...)
+src/components/     feature components, plus ui/ primitives
+src/server/db/      data access -- the only layer that talks to Prisma
+src/server/actions/ server actions: session → membership → permission → db
+src/lib/            shared pure helpers
+prisma/             schema, migrations, role seeds
+```
 
-To learn more about Next.js, take a look at the following resources:
+## How this was built: an AI-assisted workflow
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+This project is built with [Claude Code](https://claude.com/claude-code) as a
+pair programmer, with a human making every decision.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Shared instructions.** [`AGENTS.md`](./AGENTS.md) gives any AI agent the
+  architecture, conventions, and a working agreement. `CLAUDE.md` imports it,
+  so there's one source of truth for all tools.
+- **Human in the loop.** The agent proposes each change and waits for
+  approval, works one step at a time, and never runs database migrations or
+  seeds, commits, or pushes. Those stay with the human.
+- **Review → triage → fix.** Changes are reviewed with Claude Code's
+  `/code-review`. Each finding is triaged as fix, optional, or skip with a
+  reason, and some are kept on purpose as design decisions.
+- **Guardrails, not trust.** Every change must pass tests, typecheck, and lint
+  locally, and CI runs the same checks on every pull request.

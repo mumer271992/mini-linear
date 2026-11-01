@@ -3,7 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { verifySession } from "@/server/db/session";
+import { verifySession, verifySessionAllowUnverified } from "@/server/db/session";
 import {
   findOrganizationBySlug,
   isEmailOrganizationMember,
@@ -101,7 +101,10 @@ export async function inviteMember(
 // the membership. On success it redirects into the organization, so the only
 // thing it ever returns is an error.
 export async function acceptInvite(token: string): Promise<InviteErrorResult> {
-  const session = await verifySession();
+  // Unverified users are allowed here on purpose: someone who just signed up
+  // from an invite link hasn't verified yet, and accepting verifies them (see
+  // acceptInviteRecord), since the token proves they control the inbox.
+  const session = await verifySessionAllowUnverified();
 
   const invite = await findInviteByToken(token);
   if (!invite || invite.status !== "PENDING") {

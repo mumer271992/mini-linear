@@ -105,4 +105,14 @@ describe("LoginForm", () => {
       "/signup?next=%2Finvite%2Fabc&email=bob%40example.com",
     );
   });
+
+  it("shows a success notice as a status message", () => {
+    render(<LoginForm notice={{ tone: "success", message: "Email verified. Log in to continue." }} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Email verified. Log in to continue.");
+  });
+
+  it("shows an error notice as an alert", () => {
+    render(<LoginForm notice={{ tone: "error", message: "That link has expired." }} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("That link has expired.");
+  });
 });

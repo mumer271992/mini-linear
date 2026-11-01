@@ -1,6 +1,7 @@
 import "server-only";
 import { Resend } from "resend";
 import { InviteEmail } from "@/emails/invite-email";
+import { VerifyEmail } from "@/emails/verify-email";
 
 // Narrows to `string` at the type level (not just a runtime check) -- a
 // plain `if (!x) throw` on a module-scope `const` doesn't carry through into
@@ -53,5 +54,25 @@ export async function sendInviteEmail({
 
   if (error) {
     throw new Error(`Failed to send invite email: ${error.message}`);
+  }
+}
+
+interface SendVerificationEmailParams {
+  to: string;
+  name: string;
+  verifyUrl: string;
+}
+
+// Throws on failure, same contract as sendInviteEmail.
+export async function sendVerificationEmail({ to, name, verifyUrl }: SendVerificationEmailParams) {
+  const { error } = await resend.emails.send({
+    from: fromAddress,
+    to,
+    subject: "Verify your email for Mini Linear",
+    react: <VerifyEmail name={name} verifyUrl={verifyUrl} />,
+  });
+
+  if (error) {
+    throw new Error(`Failed to send verification email: ${error.message}`);
   }
 }

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
-import { verifySession } from "@/server/db/session";
+import { verifySession, verifySessionAllowUnverified } from "@/server/db/session";
 import {
   findOrganizationBySlug,
   isEmailOrganizationMember,
@@ -16,7 +16,10 @@ import { sendInviteEmail } from "@/lib/email";
 import { acceptInvite, inviteMember } from "./invite";
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
-vi.mock("@/server/db/session", () => ({ verifySession: vi.fn() }));
+vi.mock("@/server/db/session", () => ({
+  verifySession: vi.fn(),
+  verifySessionAllowUnverified: vi.fn(),
+}));
 vi.mock("@/server/db/organization", () => ({
   findOrganizationBySlug: vi.fn(),
   isEmailOrganizationMember: vi.fn(),
@@ -35,6 +38,7 @@ vi.mock("@/lib/email", () => ({ sendInviteEmail: vi.fn() }));
 
 const mockedRedirect = vi.mocked(redirect);
 const mockedVerifySession = vi.mocked(verifySession);
+const mockedVerifySessionAllowUnverified = vi.mocked(verifySessionAllowUnverified);
 const mockedIsOrganizationMember = vi.mocked(isOrganizationMember);
 const mockedAcceptInviteRecord = vi.mocked(acceptInviteRecord);
 const mockedFindInviteByToken = vi.mocked(findInviteByToken);
@@ -185,10 +189,11 @@ describe("acceptInvite", () => {
   }
 
   beforeEach(() => {
-    mockedVerifySession.mockResolvedValue({
+    mockedVerifySessionAllowUnverified.mockResolvedValue({
       sessionId: "session-2",
       userId: "user-2",
       lastOrganizationId: null,
+      isEmailVerified: false,
     });
     mockedFindInviteByToken.mockResolvedValue(pendingInvite() as never);
     mockedFindUserById.mockResolvedValue({ id: "user-2", email: "bob@example.com" } as never);
@@ -258,6 +263,14 @@ describe("acceptInvite", () => {
       roleId: "role-member",
     });
     expect(mockedRedirect).toHaveBeenCalledWith("/dashboard/acme");
+  });
+
+  it("lets a not-yet-verified user accept (accepting is what verifies them)", async () => {
+    await acceptInvite("token-1");
+
+    expect(mockedVerifySessionAllowUnverified).toHaveBeenCalled();
+    expect(mockedVerifySession).not.toHaveBeenCalled();
+    expect(mockedAcceptInviteRecord).toHaveBeenCalled();
   });
 
   it("returns invalid when the invite stopped being pending mid-request", async () => {

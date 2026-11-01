@@ -29,3 +29,12 @@ export async function createUserWithEmail(userData: UserData) {
     },
   });
 }
+
+// Only sets it once -- re-following an old link (or accepting an invite
+// after verifying) must not overwrite the original verification date.
+export async function markEmailVerified(userId: string) {
+  return prisma.user.updateMany({
+    where: { id: userId, emailVerifiedAt: null },
+    data: { emailVerifiedAt: new Date() },
+  });
+}

@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
 import { generatePasswordHash, verifyPasswordHash } from "@/lib/auth";
-import { createSession, deleteSession } from "@/server/db/session";
-import { createUserWithEmail, findUserByEmail } from "@/server/db/user";
-import { login, logout, signup } from "./auth";
+import { createSession, deleteSession, verifySessionAllowUnverified } from "@/server/db/session";
+import { createUserWithEmail, findUserByEmail, findUserById } from "@/server/db/user";
+import { sendVerificationLink } from "@/lib/email-verification";
+import { login, logout, resendVerificationEmail, signup } from "./auth";
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/auth", () => ({
@@ -14,10 +15,13 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/server/db/session", () => ({
   createSession: vi.fn(),
   deleteSession: vi.fn(),
+  verifySessionAllowUnverified: vi.fn(),
 }));
+vi.mock("@/lib/email-verification", () => ({ sendVerificationLink: vi.fn() }));
 vi.mock("@/server/db/user", () => ({
   createUserWithEmail: vi.fn(),
   findUserByEmail: vi.fn(),
+  findUserById: vi.fn(),
 }));
 
 const mockedGeneratePasswordHash = vi.mocked(generatePasswordHash);
@@ -27,9 +31,15 @@ const mockedDeleteSession = vi.mocked(deleteSession);
 const mockedCreateUserWithEmail = vi.mocked(createUserWithEmail);
 const mockedFindUserByEmail = vi.mocked(findUserByEmail);
 const mockedRedirect = vi.mocked(redirect);
+const mockedSendVerificationLink = vi.mocked(sendVerificationLink);
+const mockedVerifySessionAllowUnverified = vi.mocked(verifySessionAllowUnverified);
+const mockedFindUserById = vi.mocked(findUserById);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // clearAllMocks keeps implementations -- reset this one so a test that
+  // makes sending fail doesn't leak into the next.
+  mockedSendVerificationLink.mockResolvedValue(undefined);
   mockedFindUserByEmail.mockResolvedValue(null);
 });
 
@@ -78,6 +88,29 @@ describe("signup", () => {
     expect(mockedRedirect).toHaveBeenCalledWith("/dashboard");
   });
 
+  it("sends the new user a verification link", async () => {
+    const user = { id: "user-1", name: "A", email: "a@example.com" };
+    mockedGeneratePasswordHash.mockResolvedValue("hashed-pw");
+    mockedCreateUserWithEmail.mockResolvedValue(user as never);
+
+    await signup({ name: "A", email: "a@example.com", password: "pw" });
+
+    expect(mockedSendVerificationLink).toHaveBeenCalledWith(user);
+  });
+
+  it("still signs the user in and redirects when the verification email fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockedGeneratePasswordHash.mockResolvedValue("hashed-pw");
+    mockedCreateUserWithEmail.mockResolvedValue({ id: "user-1" } as never);
+    mockedSendVerificationLink.mockRejectedValue(new Error("send failed"));
+
+    const result = await signup({ name: "A", email: "a@example.com", password: "pw" });
+
+    expect(result).toBeUndefined();
+    expect(mockedCreateSession).toHaveBeenCalledWith("user-1");
+    expect(mockedRedirect).toHaveBeenCalledWith("/dashboard");
+  });
+
   it("redirects to a safe next path instead of /dashboard", async () => {
     mockedGeneratePasswordHash.mockResolvedValue("hashed-pw");
     mockedCreateUserWithEmail.mockResolvedValue({ id: "user-1" } as never);
@@ -115,6 +148,7 @@ describe("signup", () => {
       error: "An account with this email already exists.",
     });
     expect(mockedCreateSession).not.toHaveBeenCalled();
+    expect(mockedSendVerificationLink).not.toHaveBeenCalled();
   });
 });
 
@@ -213,5 +247,52 @@ describe("logout", () => {
   it("ignores a backslash fallback that browsers treat as protocol-relative", async () => {
     await logout("/\\evil.com");
     expect(mockedRedirect).toHaveBeenCalledWith("/");
+  });
+});
+
+describe("resendVerificationEmail", () => {
+  const user = { id: "user-1", name: "A", email: "a@example.com" };
+
+  function session(isEmailVerified: boolean) {
+    return { sessionId: "session-1", userId: "user-1", lastOrganizationId: null, isEmailVerified };
+  }
+
+  beforeEach(() => {
+    mockedVerifySessionAllowUnverified.mockResolvedValue(session(false));
+    mockedFindUserById.mockResolvedValue(user as never);
+  });
+
+  it("sends a new link to the logged-in user", async () => {
+    const result = await resendVerificationEmail();
+
+    expect(result).toEqual({ success: true });
+    expect(mockedSendVerificationLink).toHaveBeenCalledWith(user);
+  });
+
+  it("doesn't send when the email is already verified", async () => {
+    mockedVerifySessionAllowUnverified.mockResolvedValue(session(true));
+
+    const result = await resendVerificationEmail();
+
+    expect(result).toEqual({ error: "Your email is already verified." });
+    expect(mockedSendVerificationLink).not.toHaveBeenCalled();
+  });
+
+  it("returns a generic error when the user is missing", async () => {
+    mockedFindUserById.mockResolvedValue(null);
+
+    const result = await resendVerificationEmail();
+
+    expect(result).toEqual({ error: "Something went wrong. Please try again." });
+    expect(mockedSendVerificationLink).not.toHaveBeenCalled();
+  });
+
+  it("returns an error without leaking details when sending fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockedSendVerificationLink.mockRejectedValue(new Error("Resend: invalid API key"));
+
+    const result = await resendVerificationEmail();
+
+    expect(result).toEqual({ error: "Couldn't send the email. Please try again." });
   });
 });

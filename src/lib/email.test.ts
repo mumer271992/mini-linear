@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InviteEmail } from "@/emails/invite-email";
-import { sendInviteEmail } from "./email";
+import { VerifyEmail } from "@/emails/verify-email";
+import { sendInviteEmail, sendVerificationEmail } from "./email";
 
 // email.tsx instantiates `new Resend(apiKey)` once at module load, so the
 // mock constructor always has to hand back the same mockSend reference --
@@ -65,5 +66,37 @@ describe("sendInviteEmail", () => {
     mockSend.mockResolvedValue({ data: { id: "email-1" }, error: null });
 
     await expect(sendInviteEmail(params)).resolves.toBeUndefined();
+  });
+});
+
+describe("sendVerificationEmail", () => {
+  const verifyParams = {
+    to: "new@example.com",
+    name: "Sara",
+    verifyUrl: "https://example.com/verify-email/abc123",
+  };
+
+  it("sends VerifyEmail to the right address with the configured from", async () => {
+    mockSend.mockResolvedValue({ data: { id: "email-1" }, error: null });
+
+    await sendVerificationEmail(verifyParams);
+
+    const [args] = mockSend.mock.calls[0];
+    expect(args.to).toBe("new@example.com");
+    expect(args.from).toBe("Mini Linear <test@example.com>");
+    expect(args.subject).toBe("Verify your email for Mini Linear");
+    expect(args.react.type).toBe(VerifyEmail);
+    expect(args.react.props).toEqual({
+      name: "Sara",
+      verifyUrl: "https://example.com/verify-email/abc123",
+    });
+  });
+
+  it("throws a descriptive error when Resend reports a failure", async () => {
+    mockSend.mockResolvedValue({ data: null, error: { message: "Rate limited" } });
+
+    await expect(sendVerificationEmail(verifyParams)).rejects.toThrow(
+      "Failed to send verification email: Rate limited",
+    );
   });
 });

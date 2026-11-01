@@ -41,7 +41,10 @@ export const getOptionalSession = cache(async () => {
 
   const payload = token ? await verifySessionToken(token) : null;
   const session = payload
-    ? await prisma.session.findUnique({ where: { id: payload.sessionId } })
+    ? await prisma.session.findUnique({
+        where: { id: payload.sessionId },
+        include: { user: { select: { emailVerifiedAt: true } } },
+      })
     : null;
 
   if (!session || session.expiresAt < new Date()) {
@@ -52,10 +55,15 @@ export const getOptionalSession = cache(async () => {
     sessionId: session.id,
     userId: session.userId,
     lastOrganizationId: session.lastOrganizationId,
+    isEmailVerified: session.user.emailVerifiedAt !== null,
   };
 });
 
-export const verifySession = cache(async () => {
+// Logged in, but the email may not be verified yet. Only for the few places
+// an unverified user must still reach: the verify-email page, resending the
+// link, and accepting an invite (which verifies the email itself).
+// Everything else uses verifySession.
+export const verifySessionAllowUnverified = cache(async () => {
   const session = await getOptionalSession();
 
   if (!session) {
@@ -65,6 +73,18 @@ export const verifySession = cache(async () => {
     // carry a real Set-Cookie header, so the stale cookie actually gets
     // removed before the user lands on /login.
     redirect("/api/auth/clear-session");
+  }
+
+  return session;
+});
+
+// The gate for the whole app: every dashboard page and every Server Action
+// goes through here, so an unverified account can't read or write anything.
+export const verifySession = cache(async () => {
+  const { isEmailVerified, ...session } = await verifySessionAllowUnverified();
+
+  if (!isEmailVerified) {
+    redirect("/verify-email");
   }
 
   return session;

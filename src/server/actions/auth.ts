@@ -2,10 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { generatePasswordHash, verifyPasswordHash } from "@/lib/auth";
-import { createSession, deleteSession } from "@/server/db/session";
-import { createUserWithEmail, findUserByEmail } from "@/server/db/user";
+import { createSession, deleteSession, verifySessionAllowUnverified } from "@/server/db/session";
+import { createUserWithEmail, findUserByEmail, findUserById } from "@/server/db/user";
 import { Prisma } from "@/generated/prisma/client";
 import { getSafeRedirectPath } from "@/lib/redirect";
+import { sendVerificationLink } from "@/lib/email-verification";
 
 interface SignupRequest {
   name: string;
@@ -59,6 +60,16 @@ export async function signup(formData: SignupRequest): Promise<SignupResult> {
 
   await createSession(user.id);
 
+  // A failed send mustn't fail signup -- the account and session already
+  // exist, and the verify-email page lets them request another link.
+  try {
+    await sendVerificationLink(user);
+  } catch (error) {
+    console.error(error);
+  }
+
+  // Unverified users are bounced to /verify-email by verifySession, except on
+  // the invite page, where accepting the invite verifies them instead.
   redirect(getSafeRedirectPath(formData.next) ?? "/dashboard");
 }
 
@@ -106,4 +117,31 @@ export async function logout(fallbackPath?: string) {
   // Only follow the caller-supplied path if it's same-origin -- see
   // getSafeRedirectPath for what that rules out.
   redirect(getSafeRedirectPath(fallbackPath) ?? "/");
+}
+
+type ResendVerificationResult = { error: string } | { success: true };
+
+// No cooldown yet: a user can only ever email their own address, but they
+// could still burn through the Resend quota -- add a rate limit if that
+// becomes a concern.
+export async function resendVerificationEmail(): Promise<ResendVerificationResult> {
+  const session = await verifySessionAllowUnverified();
+
+  if (session.isEmailVerified) {
+    return { error: "Your email is already verified." };
+  }
+
+  const user = await findUserById(session.userId);
+  if (!user) {
+    return { error: "Something went wrong. Please try again." };
+  }
+
+  try {
+    await sendVerificationLink(user);
+  } catch (error) {
+    console.error(error);
+    return { error: "Couldn't send the email. Please try again." };
+  }
+
+  return { success: true };
 }

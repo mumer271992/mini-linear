@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { generatePasswordHash, verifyPasswordHash } from "@/lib/auth";
 import { createSession, deleteSession, verifySessionAllowUnverified } from "@/server/db/session";
 import { createUserWithEmail, findUserByEmail, findUserById } from "@/server/db/user";
@@ -60,13 +61,18 @@ export async function signup(formData: SignupRequest): Promise<SignupResult> {
 
   await createSession(user.id);
 
-  // A failed send mustn't fail signup -- the account and session already
-  // exist, and the verify-email page lets them request another link.
-  try {
-    await sendVerificationLink(user);
-  } catch (error) {
-    console.error(error);
-  }
+  // Sent after the response so a slow email provider never holds up signup
+  // (after() still runs even though redirect() below throws). A failed send
+  // mustn't fail signup either -- the account and session already exist,
+  // and the verify-email page lets them request another link.
+  const recipient = { id: user.id, name: user.name, email: user.email };
+  after(async () => {
+    try {
+      await sendVerificationLink(recipient);
+    } catch (error) {
+      console.error(error);
+    }
+  });
 
   // Unverified users are bounced to /verify-email by verifySession, except on
   // the invite page, where accepting the invite verifies them instead.

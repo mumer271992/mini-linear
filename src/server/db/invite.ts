@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/server/db";
 import { findOrganizationBySlug } from "@/server/db/organization";
+import { markEmailVerified } from "@/server/db/user";
 
 // Pending only -- this backs the Members page's "outstanding invites" list,
 // not a historical log. Accepted/revoked rows stay in the table for audit
@@ -88,12 +89,8 @@ export async function acceptInvite({ inviteId, userId, organizationId, roleId }:
     });
 
     // The token only ever reached this user through an email to this
-    // address, so following it proves they control the inbox. Only set it
-    // once -- don't overwrite an earlier verification date.
-    await tx.user.updateMany({
-      where: { id: userId, emailVerifiedAt: null },
-      data: { emailVerifiedAt: new Date() },
-    });
+    // address, so following it proves they control the inbox.
+    await markEmailVerified(userId, tx);
 
     return true;
   });

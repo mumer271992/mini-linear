@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { generatePasswordHash, verifyPasswordHash } from "@/lib/auth";
 import { createSession, deleteSession, verifySessionAllowUnverified } from "@/server/db/session";
@@ -8,6 +9,7 @@ import { sendVerificationLink } from "@/lib/email-verification";
 import { login, logout, resendVerificationEmail, signup } from "./auth";
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+vi.mock("next/server", () => ({ after: vi.fn() }));
 vi.mock("@/lib/auth", () => ({
   generatePasswordHash: vi.fn(),
   verifyPasswordHash: vi.fn(),
@@ -31,6 +33,15 @@ const mockedDeleteSession = vi.mocked(deleteSession);
 const mockedCreateUserWithEmail = vi.mocked(createUserWithEmail);
 const mockedFindUserByEmail = vi.mocked(findUserByEmail);
 const mockedRedirect = vi.mocked(redirect);
+const mockedAfter = vi.mocked(after);
+
+// Runs whatever signup scheduled with after(), the way Next.js would once
+// the response has gone out.
+async function runAfterCallbacks() {
+  for (const [callback] of mockedAfter.mock.calls) {
+    await (callback as () => Promise<void>)();
+  }
+}
 const mockedSendVerificationLink = vi.mocked(sendVerificationLink);
 const mockedVerifySessionAllowUnverified = vi.mocked(verifySessionAllowUnverified);
 const mockedFindUserById = vi.mocked(findUserById);
@@ -88,27 +99,41 @@ describe("signup", () => {
     expect(mockedRedirect).toHaveBeenCalledWith("/dashboard");
   });
 
-  it("sends the new user a verification link", async () => {
-    const user = { id: "user-1", name: "A", email: "a@example.com" };
+  it("sends the verification link after the response, not before redirecting", async () => {
     mockedGeneratePasswordHash.mockResolvedValue("hashed-pw");
-    mockedCreateUserWithEmail.mockResolvedValue(user as never);
+    mockedCreateUserWithEmail.mockResolvedValue({
+      id: "user-1",
+      name: "A",
+      email: "a@example.com",
+      passwordHash: "hashed-pw",
+    } as never);
 
     await signup({ name: "A", email: "a@example.com", password: "pw" });
 
-    expect(mockedSendVerificationLink).toHaveBeenCalledWith(user);
+    // Redirected without waiting on the email provider...
+    expect(mockedRedirect).toHaveBeenCalledWith("/dashboard");
+    expect(mockedSendVerificationLink).not.toHaveBeenCalled();
+
+    // ...and the send happens once the response is done, with only the
+    // fields the email needs.
+    await runAfterCallbacks();
+    expect(mockedSendVerificationLink).toHaveBeenCalledWith({
+      id: "user-1",
+      name: "A",
+      email: "a@example.com",
+    });
   });
 
-  it("still signs the user in and redirects when the verification email fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
+  it("swallows and logs a failed verification send", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     mockedGeneratePasswordHash.mockResolvedValue("hashed-pw");
     mockedCreateUserWithEmail.mockResolvedValue({ id: "user-1" } as never);
     mockedSendVerificationLink.mockRejectedValue(new Error("send failed"));
 
-    const result = await signup({ name: "A", email: "a@example.com", password: "pw" });
+    await signup({ name: "A", email: "a@example.com", password: "pw" });
 
-    expect(result).toBeUndefined();
-    expect(mockedCreateSession).toHaveBeenCalledWith("user-1");
-    expect(mockedRedirect).toHaveBeenCalledWith("/dashboard");
+    await expect(runAfterCallbacks()).resolves.toBeUndefined();
+    expect(consoleError).toHaveBeenCalledWith(new Error("send failed"));
   });
 
   it("redirects to a safe next path instead of /dashboard", async () => {
@@ -148,7 +173,7 @@ describe("signup", () => {
       error: "An account with this email already exists.",
     });
     expect(mockedCreateSession).not.toHaveBeenCalled();
-    expect(mockedSendVerificationLink).not.toHaveBeenCalled();
+    expect(mockedAfter).not.toHaveBeenCalled();
   });
 });
 

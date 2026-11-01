@@ -21,4 +21,16 @@ describe("markEmailVerified", () => {
       data: { emailVerifiedAt: expect.any(Date) },
     });
   });
+
+  it("runs on the given transaction client instead of the global one", async () => {
+    const tx = { user: { updateMany: vi.fn() } };
+
+    await markEmailVerified("user-1", tx as never);
+
+    expect(tx.user.updateMany).toHaveBeenCalledWith({
+      where: { id: "user-1", emailVerifiedAt: null },
+      data: { emailVerifiedAt: expect.any(Date) },
+    });
+    expect(mockedUpdateMany).not.toHaveBeenCalled();
+  });
 });

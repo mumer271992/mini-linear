@@ -44,3 +44,27 @@ export async function markEmailVerified(
     data: { emailVerifiedAt: new Date() },
   });
 }
+
+// Starts a verification-email cooldown, atomically: one conditional UPDATE,
+// so of several simultaneous requests only one can match and the rest see
+// the timestamp it just wrote. Returns false (and sends nothing, at the
+// caller) while the last email is younger than `cooldownMs`, or once the
+// user is verified.
+export async function claimVerificationEmailSlot(userId: string, cooldownMs: number) {
+  const now = new Date();
+
+  const { count } = await prisma.user.updateMany({
+    where: {
+      id: userId,
+      emailVerifiedAt: null,
+      OR: [
+        { verificationEmailSentAt: null },
+        { verificationEmailSentAt: { lte: new Date(now.getTime() - cooldownMs) } },
+      ],
+    },
+    data: { verificationEmailSentAt: now },
+  });
+
+  return count === 1;
+}
+

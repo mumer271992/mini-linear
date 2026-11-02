@@ -1,9 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { getOrganizationMembers } from "@/server/db/organization";
+import { verifySession } from "@/server/db/session";
+import { getOrganizationMembers, requireMembership } from "@/server/db/organization";
 import ProjectTasksPage from "./page";
 
-vi.mock("@/server/db/organization", () => ({ getOrganizationMembers: vi.fn() }));
+vi.mock("@/server/db/session", () => ({ verifySession: vi.fn() }));
+vi.mock("@/server/db/organization", () => ({
+  getOrganizationMembers: vi.fn(),
+  requireMembership: vi.fn(),
+}));
 
 // TasksContainer is itself an async Server Component -- React's plain client
 // renderer (what RTL uses here) can only resolve the one async component we
@@ -33,6 +38,25 @@ vi.mock("@/components/tasks-container", () => ({
 }));
 
 const mockedGetOrganizationMembers = vi.mocked(getOrganizationMembers);
+const mockedVerifySession = vi.mocked(verifySession);
+const mockedRequireMembership = vi.mocked(requireMembership);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockedVerifySession.mockResolvedValue({
+    sessionId: "session-1",
+    userId: "user-1",
+    lastOrganizationId: null,
+  });
+  mockedRequireMembership.mockResolvedValue({ id: "membership-1" } as never);
+});
+
+function renderTasksPage(orgSlug = "acme") {
+  return ProjectTasksPage({
+    params: Promise.resolve({ orgSlug, projectSlug: "website-redesign-abc123" }),
+    searchParams: Promise.resolve({}),
+  } as never);
+}
 
 describe("ProjectTasksPage", () => {
   it("fetches org members and renders TasksContainer when there are no filters", async () => {
@@ -82,5 +106,27 @@ describe("ProjectTasksPage", () => {
         "tasks container for acme/website-redesign-abc123, 0 member(s), statuses=BACKLOG, assignees=",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("checks membership itself instead of relying on the layout", async () => {
+    mockedGetOrganizationMembers.mockResolvedValue([]);
+
+    await renderTasksPage();
+
+    expect(mockedRequireMembership).toHaveBeenCalledWith("user-1", "acme");
+  });
+
+  it("reads nothing and renders no tasks when the session check fails", async () => {
+    mockedVerifySession.mockRejectedValue(new Error("NEXT_REDIRECT:/verify-email"));
+
+    await expect(renderTasksPage()).rejects.toThrow("NEXT_REDIRECT:/verify-email");
+    expect(mockedGetOrganizationMembers).not.toHaveBeenCalled();
+  });
+
+  it("reads nothing and renders no tasks for a non-member", async () => {
+    mockedRequireMembership.mockRejectedValue(new Error("You are not a member of this organization."));
+
+    await expect(renderTasksPage("other-org")).rejects.toThrow("not a member of this organization");
+    expect(mockedGetOrganizationMembers).not.toHaveBeenCalled();
   });
 });

@@ -6,7 +6,12 @@ import { resendVerificationEmail } from "@/server/actions/auth";
 
 type Status = { kind: "sent" } | { kind: "error"; message: string } | null;
 
-export function ResendVerificationButton() {
+interface ResendVerificationButtonProps {
+  // Passed in by the page: the constant lives in a server-only module.
+  cooldownMinutes: number;
+}
+
+export function ResendVerificationButton({ cooldownMinutes }: ResendVerificationButtonProps) {
   const [status, setStatus] = useState<Status>(null);
   const [isSending, setIsSending] = useState(false);
 
@@ -32,6 +37,9 @@ export function ResendVerificationButton() {
       <Button type="button" onClick={handleResend} isProcessing={isSending}>
         Resend email
       </Button>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        You can request a new email once every {cooldownMinutes} minutes.
+      </p>
       {status?.kind === "sent" && (
         <p className="text-sm text-green-700 dark:text-green-500" role="status">
           Sent! Check your inbox for a new link.

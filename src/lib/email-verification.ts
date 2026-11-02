@@ -5,6 +5,20 @@ import { sendVerificationEmail } from "@/lib/email";
 
 export const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+// Minimum gap between verification emails to one user. Generous on purpose:
+// the demo runs on Resend's free plan, so this protects the sending quota.
+export const VERIFICATION_EMAIL_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+export const VERIFICATION_EMAIL_COOLDOWN_MINUTES = VERIFICATION_EMAIL_COOLDOWN_MS / 60_000;
+
+// Whole minutes until the cooldown ends, rounded up and never below 1 -- this
+// is only shown after a send was refused, so "0 minutes" would read as a bug.
+// A missing lastSentAt means another request claimed the slot a moment ago.
+export function minutesUntilNextVerificationEmail(lastSentAt: Date | null, now = new Date()) {
+  const elapsedMs = lastSentAt ? now.getTime() - lastSentAt.getTime() : 0;
+  const remainingMs = Math.max(VERIFICATION_EMAIL_COOLDOWN_MS - elapsedMs, 0);
+  return Math.max(1, Math.ceil(remainingMs / 60_000));
+}
+
 // Shares the signing key with session cookies, so the audience is what
 // stops a session token from being accepted as a verification link.
 const AUDIENCE = "email-verification";

@@ -28,10 +28,14 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/verify-email
 
   await markEmailVerified(user.id);
 
-  // Logged in (as this user or anyone else): /login would just bounce back
-  // via Proxy, so send them into the app. verifySession takes it from there.
+  // Logged in: /login would just bounce back via Proxy, so stay in the app.
+  // As this user, verifySession takes it from /dashboard. As someone else,
+  // /dashboard would look like the link did nothing, so say what happened.
   if (session) {
-    return redirectTo(request, "/dashboard");
+    return redirectTo(
+      request,
+      session.userId === user.id ? "/dashboard" : "/verify-email/other-account",
+    );
   }
 
   const loginParams = new URLSearchParams({ notice: "email-verified", email: user.email });

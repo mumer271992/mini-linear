@@ -4,10 +4,20 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { generatePasswordHash, verifyPasswordHash } from "@/lib/auth";
 import { createSession, deleteSession, verifySessionAllowUnverified } from "@/server/db/session";
-import { createUserWithEmail, findUserByEmail, findUserById } from "@/server/db/user";
+import {
+  claimVerificationEmailSlot,
+  createUserWithEmail,
+  findUserByEmail,
+  findUserById,
+} from "@/server/db/user";
 import { Prisma } from "@/generated/prisma/client";
 import { getSafeRedirectPath } from "@/lib/redirect";
-import { sendVerificationLink } from "@/lib/email-verification";
+import {
+  VERIFICATION_EMAIL_COOLDOWN_MINUTES,
+  VERIFICATION_EMAIL_COOLDOWN_MS,
+  minutesUntilNextVerificationEmail,
+  sendVerificationLink,
+} from "@/lib/email-verification";
 
 interface SignupRequest {
   name: string;
@@ -68,7 +78,11 @@ export async function signup(formData: SignupRequest): Promise<SignupResult> {
   const recipient = { id: user.id, name: user.name, email: user.email };
   after(async () => {
     try {
-      await sendVerificationLink(recipient);
+      // Claiming starts the cooldown, so "Resend" straight after signing up
+      // is refused too. A brand-new user always gets the slot.
+      if (await claimVerificationEmailSlot(recipient.id, VERIFICATION_EMAIL_COOLDOWN_MS)) {
+        await sendVerificationLink(recipient);
+      }
     } catch (error) {
       console.error(error);
     }
@@ -127,9 +141,10 @@ export async function logout(fallbackPath?: string) {
 
 type ResendVerificationResult = { error: string } | { success: true };
 
-// No cooldown yet: a user can only ever email their own address, but they
-// could still burn through the Resend quota -- add a rate limit if that
-// becomes a concern.
+// Rate limited per user by a cooldown (VERIFICATION_EMAIL_COOLDOWN_MS),
+// enforced atomically in the database so parallel requests can't slip
+// through. Not covered: someone creating many accounts -- that needs
+// IP-based limiting at signup.
 export async function resendVerificationEmail(): Promise<ResendVerificationResult> {
   const session = await verifySessionAllowUnverified();
 
@@ -142,11 +157,23 @@ export async function resendVerificationEmail(): Promise<ResendVerificationResul
     return { error: "Something went wrong. Please try again." };
   }
 
+  const claimed = await claimVerificationEmailSlot(user.id, VERIFICATION_EMAIL_COOLDOWN_MS);
+  if (!claimed) {
+    const minutes = minutesUntilNextVerificationEmail(user.verificationEmailSentAt);
+    return {
+      error: `You can request another email in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+    };
+  }
+
   try {
     await sendVerificationLink(user);
   } catch (error) {
+    // The slot stays claimed, so the user waits out the cooldown -- keep the
+    // message honest about that rather than inviting an instant retry.
     console.error(error);
-    return { error: "Couldn't send the email. Please try again." };
+    return {
+      error: `Couldn't send the email. Please try again in ${VERIFICATION_EMAIL_COOLDOWN_MINUTES} minutes.`,
+    };
   }
 
   return { success: true };

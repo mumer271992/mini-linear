@@ -16,7 +16,7 @@ describe("ResendVerificationButton", () => {
   it("confirms when the email was sent", async () => {
     mockedResend.mockResolvedValue({ success: true });
     const user = userEvent.setup();
-    render(<ResendVerificationButton />);
+    render(<ResendVerificationButton cooldownMinutes={5} />);
 
     await user.click(screen.getByRole("button", { name: "Resend email" }));
 
@@ -26,7 +26,7 @@ describe("ResendVerificationButton", () => {
   it("shows the action's error message", async () => {
     mockedResend.mockResolvedValue({ error: "Couldn't send the email. Please try again." });
     const user = userEvent.setup();
-    render(<ResendVerificationButton />);
+    render(<ResendVerificationButton cooldownMinutes={5} />);
 
     await user.click(screen.getByRole("button", { name: "Resend email" }));
 
@@ -37,7 +37,7 @@ describe("ResendVerificationButton", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     mockedResend.mockRejectedValue(new Error("network down"));
     const user = userEvent.setup();
-    render(<ResendVerificationButton />);
+    render(<ResendVerificationButton cooldownMinutes={5} />);
 
     await user.click(screen.getByRole("button", { name: "Resend email" }));
 
@@ -49,7 +49,7 @@ describe("ResendVerificationButton", () => {
     let finish!: (value: { success: true }) => void;
     mockedResend.mockReturnValue(new Promise((resolve) => (finish = resolve)));
     const user = userEvent.setup();
-    render(<ResendVerificationButton />);
+    render(<ResendVerificationButton cooldownMinutes={5} />);
 
     await user.click(screen.getByRole("button", { name: "Resend email" }));
 
@@ -58,5 +58,13 @@ describe("ResendVerificationButton", () => {
     // By text, not role: the in-button <Spinner /> also has role="status".
     expect(await screen.findByText("Sent! Check your inbox for a new link.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Resend email" })).toBeEnabled();
+  });
+
+  it("tells the user how often they can resend", () => {
+    render(<ResendVerificationButton cooldownMinutes={5} />);
+
+    expect(
+      screen.getByText("You can request a new email once every 5 minutes."),
+    ).toBeInTheDocument();
   });
 });

@@ -4,7 +4,12 @@ import { after } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { generatePasswordHash, verifyPasswordHash } from "@/lib/auth";
 import { createSession, deleteSession, verifySessionAllowUnverified } from "@/server/db/session";
-import { createUserWithEmail, findUserByEmail, findUserById } from "@/server/db/user";
+import {
+  claimVerificationEmailSlot,
+  createUserWithEmail,
+  findUserByEmail,
+  findUserById,
+} from "@/server/db/user";
 import { sendVerificationLink } from "@/lib/email-verification";
 import { login, logout, resendVerificationEmail, signup } from "./auth";
 
@@ -19,11 +24,16 @@ vi.mock("@/server/db/session", () => ({
   deleteSession: vi.fn(),
   verifySessionAllowUnverified: vi.fn(),
 }));
-vi.mock("@/lib/email-verification", () => ({ sendVerificationLink: vi.fn() }));
+// Keep the real cooldown constants and minutes helper; only stub the send.
+vi.mock("@/lib/email-verification", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/email-verification")>()),
+  sendVerificationLink: vi.fn(),
+}));
 vi.mock("@/server/db/user", () => ({
   createUserWithEmail: vi.fn(),
   findUserByEmail: vi.fn(),
   findUserById: vi.fn(),
+  claimVerificationEmailSlot: vi.fn(),
 }));
 
 const mockedGeneratePasswordHash = vi.mocked(generatePasswordHash);
@@ -45,12 +55,14 @@ async function runAfterCallbacks() {
 const mockedSendVerificationLink = vi.mocked(sendVerificationLink);
 const mockedVerifySessionAllowUnverified = vi.mocked(verifySessionAllowUnverified);
 const mockedFindUserById = vi.mocked(findUserById);
+const mockedClaimSlot = vi.mocked(claimVerificationEmailSlot);
 
 beforeEach(() => {
   vi.clearAllMocks();
   // clearAllMocks keeps implementations -- reset this one so a test that
   // makes sending fail doesn't leak into the next.
   mockedSendVerificationLink.mockResolvedValue(undefined);
+  mockedClaimSlot.mockResolvedValue(true);
   mockedFindUserByEmail.mockResolvedValue(null);
 });
 
@@ -122,6 +134,28 @@ describe("signup", () => {
       name: "A",
       email: "a@example.com",
     });
+  });
+
+  it("starts the resend cooldown when sending the signup email", async () => {
+    mockedGeneratePasswordHash.mockResolvedValue("hashed-pw");
+    mockedCreateUserWithEmail.mockResolvedValue({ id: "user-1" } as never);
+
+    await signup({ name: "A", email: "a@example.com", password: "pw" });
+    await runAfterCallbacks();
+
+    expect(mockedClaimSlot).toHaveBeenCalledWith("user-1", 5 * 60 * 1000);
+    expect(mockedSendVerificationLink).toHaveBeenCalled();
+  });
+
+  it("doesn't send the signup email if the slot can't be claimed", async () => {
+    mockedGeneratePasswordHash.mockResolvedValue("hashed-pw");
+    mockedCreateUserWithEmail.mockResolvedValue({ id: "user-1" } as never);
+    mockedClaimSlot.mockResolvedValue(false);
+
+    await signup({ name: "A", email: "a@example.com", password: "pw" });
+    await runAfterCallbacks();
+
+    expect(mockedSendVerificationLink).not.toHaveBeenCalled();
   });
 
   it("swallows and logs a failed verification send", async () => {
@@ -287,11 +321,43 @@ describe("resendVerificationEmail", () => {
     mockedFindUserById.mockResolvedValue(user as never);
   });
 
-  it("sends a new link to the logged-in user", async () => {
+  it("claims a cooldown slot, then sends a new link to the logged-in user", async () => {
     const result = await resendVerificationEmail();
 
     expect(result).toEqual({ success: true });
+    expect(mockedClaimSlot).toHaveBeenCalledWith("user-1", 5 * 60 * 1000);
     expect(mockedSendVerificationLink).toHaveBeenCalledWith(user);
+  });
+
+  it("refuses during the cooldown, saying how long is left", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-01T12:00:00Z"));
+    mockedFindUserById.mockResolvedValue({
+      ...user,
+      verificationEmailSentAt: new Date("2026-11-01T11:58:00Z"),
+    } as never);
+    mockedClaimSlot.mockResolvedValue(false);
+
+    const result = await resendVerificationEmail();
+    vi.useRealTimers();
+
+    expect(result).toEqual({ error: "You can request another email in 3 minutes." });
+    expect(mockedSendVerificationLink).not.toHaveBeenCalled();
+  });
+
+  it("uses the singular for one minute left", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-01T12:00:00Z"));
+    mockedFindUserById.mockResolvedValue({
+      ...user,
+      verificationEmailSentAt: new Date("2026-11-01T11:55:30Z"),
+    } as never);
+    mockedClaimSlot.mockResolvedValue(false);
+
+    const result = await resendVerificationEmail();
+    vi.useRealTimers();
+
+    expect(result).toEqual({ error: "You can request another email in 1 minute." });
   });
 
   it("doesn't send when the email is already verified", async () => {
@@ -301,6 +367,7 @@ describe("resendVerificationEmail", () => {
 
     expect(result).toEqual({ error: "Your email is already verified." });
     expect(mockedSendVerificationLink).not.toHaveBeenCalled();
+    expect(mockedClaimSlot).not.toHaveBeenCalled();
   });
 
   it("returns a generic error when the user is missing", async () => {
@@ -318,6 +385,8 @@ describe("resendVerificationEmail", () => {
 
     const result = await resendVerificationEmail();
 
-    expect(result).toEqual({ error: "Couldn't send the email. Please try again." });
+    expect(result).toEqual({
+      error: "Couldn't send the email. Please try again in 5 minutes.",
+    });
   });
 });

@@ -12,8 +12,10 @@ export default async function ProjectDetailLayout({
   const session = await verifySession();
   const { orgSlug, projectSlug } = await params;
 
-  // Runs once per request and gates the whole subtree -- nested pages don't
-  // need to repeat this, since Next.js never renders them if this throws.
+  // Guards only this layout's own reads. Layouts don't re-render on client
+  // navigation and don't stop child segments from rendering, so every page
+  // below must run its own verifySession + requireMembership (both are
+  // cache()-wrapped, so on a full render that costs no extra queries).
   await requireMembership(session.userId, orgSlug);
 
   const project = await findProjectBySlug(orgSlug, projectSlug);

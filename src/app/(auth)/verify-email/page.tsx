@@ -4,6 +4,7 @@ import { verifySessionAllowUnverified } from "@/server/db/session";
 import { findUserById } from "@/server/db/user";
 import { logout } from "@/server/actions/auth";
 import { firstSearchParam } from "@/lib/redirect";
+import { VERIFICATION_EMAIL_COOLDOWN_MINUTES } from "@/lib/email-verification";
 import { Button } from "@/components/ui/button";
 import { ResendVerificationButton } from "@/components/resend-verification-button";
 
@@ -46,7 +47,7 @@ export default async function VerifyEmailPage({ searchParams }: PageProps<"/veri
       )}
 
       <div className="mt-8 flex flex-col gap-3">
-        <ResendVerificationButton />
+        <ResendVerificationButton cooldownMinutes={VERIFICATION_EMAIL_COOLDOWN_MINUTES} />
         <form action={logoutToLogin}>
           <Button
             type="submit"

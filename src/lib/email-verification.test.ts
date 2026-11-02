@@ -7,6 +7,8 @@ import { SignJWT } from "jose";
 import { sendVerificationEmail } from "@/lib/email";
 import {
   EMAIL_VERIFICATION_TTL_MS,
+  VERIFICATION_EMAIL_COOLDOWN_MINUTES,
+  minutesUntilNextVerificationEmail,
   sendVerificationLink,
   signEmailVerificationToken,
   verifyEmailVerificationToken,
@@ -126,3 +128,28 @@ describe("sendVerificationLink", () => {
     await expect(sendVerificationLink(user)).rejects.toThrow("send failed");
   });
 });
+
+describe("minutesUntilNextVerificationEmail", () => {
+  const now = new Date("2026-11-01T12:00:00Z");
+  const minutesAgo = (minutes: number) => new Date(now.getTime() - minutes * 60_000);
+
+  it("is a 5-minute cooldown", () => {
+    expect(VERIFICATION_EMAIL_COOLDOWN_MINUTES).toBe(5);
+  });
+
+  it("rounds the remaining time up to whole minutes", () => {
+    expect(minutesUntilNextVerificationEmail(minutesAgo(0.5), now)).toBe(5);
+    expect(minutesUntilNextVerificationEmail(minutesAgo(2), now)).toBe(3);
+    expect(minutesUntilNextVerificationEmail(minutesAgo(4.5), now)).toBe(1);
+  });
+
+  it("never says 0, even at or past the boundary", () => {
+    expect(minutesUntilNextVerificationEmail(minutesAgo(5), now)).toBe(1);
+    expect(minutesUntilNextVerificationEmail(minutesAgo(10), now)).toBe(1);
+  });
+
+  it("assumes a full cooldown when another request just claimed the slot", () => {
+    expect(minutesUntilNextVerificationEmail(null, now)).toBe(5);
+  });
+});
+

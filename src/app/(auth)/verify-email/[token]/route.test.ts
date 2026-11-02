@@ -45,13 +45,22 @@ describe("GET /verify-email/[token]", () => {
     expect(path).toBe("/login?notice=email-verified&email=sara%40example.com");
   });
 
-  it("verifies and sends a logged-in user into the app", async () => {
+  it("verifies and sends the same user, logged in, into the app", async () => {
     mockedGetOptionalSession.mockResolvedValue(loggedIn);
 
     const { path } = await follow();
 
     expect(mockedMarkEmailVerified).toHaveBeenCalledWith("user-1");
     expect(path).toBe("/dashboard");
+  });
+
+  it("verifies and explains when a different account is logged in", async () => {
+    mockedGetOptionalSession.mockResolvedValue({ ...loggedIn, userId: "user-2" });
+
+    const { path } = await follow();
+
+    expect(mockedMarkEmailVerified).toHaveBeenCalledWith("user-1");
+    expect(path).toBe("/verify-email/other-account");
   });
 
   it("matches the email case- and whitespace-insensitively", async () => {

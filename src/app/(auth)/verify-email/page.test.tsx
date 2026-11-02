@@ -14,7 +14,9 @@ vi.mock("@/server/db/user", () => ({ findUserById: vi.fn() }));
 vi.mock("@/server/actions/auth", () => ({ logout: vi.fn() }));
 // Covered in components/resend-verification-button.test.tsx.
 vi.mock("@/components/resend-verification-button", () => ({
-  ResendVerificationButton: () => <button type="button">Resend email</button>,
+  ResendVerificationButton: ({ cooldownMinutes }: { cooldownMinutes: number }) => (
+    <button type="button">Resend email (every {cooldownMinutes} min)</button>
+  ),
 }));
 
 const mockedVerifySession = vi.mocked(verifySessionAllowUnverified);
@@ -41,7 +43,8 @@ describe("VerifyEmailPage", () => {
 
     expect(screen.getByRole("heading", { name: "Verify your email" })).toBeInTheDocument();
     expect(screen.getByText("sara@example.com")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Resend email" })).toBeInTheDocument();
+    // The cooldown comes from the server-only constant, passed down as a prop.
+    expect(screen.getByRole("button", { name: "Resend email (every 5 min)" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

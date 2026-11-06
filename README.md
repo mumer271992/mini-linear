@@ -45,6 +45,7 @@ npm run dev               # http://localhost:3000
 | `npm run typecheck` | Type-check the project |
 | `npm run lint` | Lint |
 | `npm run migrate <name>` | Create and apply a migration (see `scripts/migrate.sh`) |
+| `npm run migrate:deploy` | Apply existing, not-yet-applied migrations to the local DB and regenerate the Prisma client |
 | `npm run seed` | Seed or update roles and permissions (safe to re-run) |
 
 ## Project structure

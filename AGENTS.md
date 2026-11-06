@@ -22,9 +22,9 @@ These rules come first. They keep the human in control of every change.
   trade-offs) and wait for approval. Work one step at a time, not everything
   at once.
 - **Never run migrations, seeds, or anything that touches a database.** That
-  includes `npm run migrate`, `migrate:prod`, `seed`, `seed:prod`, and raw
-  `psql`/`prisma` commands against a real DB. Give the human the exact command
-  and let them run it.
+  includes `npm run migrate`, `migrate:deploy`, `migrate:prod`, `seed`,
+  `seed:prod`, and raw `psql`/`prisma` commands against a real DB. Give the
+  human the exact command and let them run it.
 - **Never commit, push, or open PRs unless asked.** The human commits.
 - **Report results honestly.** Say what was verified (tests, typecheck, lint)
   and what wasn't (e.g. not tried in the browser).
@@ -44,11 +44,12 @@ These rules come first. They keep the human in control of every change.
 Before reporting a change as done, run `test`, `typecheck` and `lint`. CI
 (`.github/workflows/preview.yml`) runs the same three on every PR to `main`.
 
-Database commands (`migrate`, `seed`, and their `:prod` variants) are
-human-only — see the working agreement. `scripts/migrate.sh` is a custom
-workaround for `prisma migrate` hanging against Supabase's pooler: it diffs
-`schema.prisma` against a snapshot, applies the SQL with `psql`, and records it
-in `_prisma_migrations`.
+Database commands (`migrate`, `migrate:deploy`, `seed`, and their `:prod`
+variants) are human-only — see the working agreement. `scripts/migrate.sh` is a
+custom workaround for `prisma migrate` hanging against Supabase's pooler: it
+diffs `schema.prisma` against a snapshot, applies the SQL with `psql`, and
+records it in `_prisma_migrations`. `migrate:deploy` only applies migration
+folders that already exist (e.g. pulled from git) to the local DB.
 
 ## Stack
 

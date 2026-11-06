@@ -3,7 +3,9 @@ import type { NextRequest } from "next/server";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 const publicRoutes = ["/", "/login", "/signup"];
-const privateRoutes = ["/dashboard", "/onboarding"];
+// Exact matches only: /verify-email/[token] stays reachable logged out, so
+// a link opened on another device still verifies.
+const privateRoutes = ["/dashboard", "/onboarding", "/verify-email"];
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;

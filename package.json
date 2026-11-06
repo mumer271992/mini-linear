@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "migrate": "./scripts/migrate.sh",
+    "migrate:deploy": "./scripts/deploy-migrations-local.sh",
     "migrate:prod": "./scripts/deploy-migrations-prod.sh",
     "seed": "./scripts/seed.sh",
     "seed:prod": "./scripts/seed-prod.sh",

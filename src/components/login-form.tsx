@@ -17,14 +17,20 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+export interface LoginNotice {
+  tone: "success" | "error";
+  message: string;
+}
+
 interface LoginFormProps {
   // Already validated by the page (getSafeRedirectPath); the action
   // re-validates before redirecting.
   next?: string | null;
   defaultEmail?: string;
+  notice?: LoginNotice;
 }
 
-export function LoginForm({ next, defaultEmail }: LoginFormProps) {
+export function LoginForm({ next, defaultEmail, notice }: LoginFormProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
@@ -56,6 +62,19 @@ export function LoginForm({ next, defaultEmail }: LoginFormProps) {
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
         Welcome back. Enter your details to continue.
       </p>
+
+      {notice && (
+        <p
+          className={
+            notice.tone === "success"
+              ? "mt-4 text-sm text-green-700 dark:text-green-500"
+              : "mt-4 text-sm text-red-600"
+          }
+          role={notice.tone === "success" ? "status" : "alert"}
+        >
+          {notice.message}
+        </p>
+      )}
 
       <form
         onSubmit={handleSubmit(onSubmit)}

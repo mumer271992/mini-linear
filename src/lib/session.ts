@@ -1,14 +1,14 @@
 import "server-only";
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
+import { signingKey } from "@/lib/signing-key";
 
 export const SESSION_COOKIE_NAME = "session";
 export const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-const secretKey = process.env.SESSION_SECRET;
-if (!secretKey) {
-  throw new Error("SESSION_SECRET environment variable is not set");
-}
-const encodedKey = new TextEncoder().encode(secretKey);
+// Every JWT the app signs shares one key (see signing-key.ts); the audience
+// is what stops another token type, such as an email verification link the
+// user received, from being accepted as a session cookie.
+const AUDIENCE = "session";
 
 export interface SessionTokenPayload extends JWTPayload {
   sessionId: string;
@@ -25,17 +25,24 @@ export async function signSessionToken(payload: SessionTokenPayload) {
 
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
+    .setAudience(AUDIENCE)
     .setIssuedAt()
     .setExpirationTime(expirationTime)
-    .sign(encodedKey);
+    .sign(signingKey);
 }
 
 export async function verifySessionToken(token: string) {
   try {
-    const { payload } = await jwtVerify(token, encodedKey, {
+    const { payload } = await jwtVerify(token, signingKey, {
       algorithms: ["HS256"],
+      audience: AUDIENCE,
     });
-    return payload as unknown as SessionTokenPayload;
+    // Shape check so the cast below is backed by something, not just trust
+    // in whoever signed the token.
+    if (typeof payload.sessionId !== "string" || typeof payload.userId !== "string") {
+      return null;
+    }
+    return payload as SessionTokenPayload;
   } catch {
     return null;
   }

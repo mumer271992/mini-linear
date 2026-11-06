@@ -49,6 +49,7 @@ function signedInAs(email: string) {
     sessionId: "session-2",
     userId: "user-2",
     lastOrganizationId: null,
+    isEmailVerified: false,
   });
   mockedFindUserById.mockResolvedValue({ id: "user-2", email } as never);
 }

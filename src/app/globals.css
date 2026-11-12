@@ -59,3 +59,17 @@ body {
     transform: scale(1);
   }
 }
+
+/* LinkPendingIcon: after a 100ms delay (set on the element), hide the link's
+   icon and fade in the spinner over it. */
+@keyframes link-pending-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes link-pending-in {
+  to {
+    opacity: 1;
+  }
+}

@@ -6,6 +6,7 @@ import { getProjectsForOrganization } from "@/server/db/project";
 import { getProjectPriorityOption, getProjectStatusOption } from "@/lib/project";
 import { cn } from "@/lib/utils";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { LinkPendingIcon } from "@/components/ui/link-pending-icon";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -31,7 +32,9 @@ export default async function ProjectsPage({
           href={`/dashboard/${orgSlug}/projects/create`}
           className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
         >
-          <PlusIcon className="h-4 w-4" />
+          <LinkPendingIcon>
+            <PlusIcon className="h-4 w-4" />
+          </LinkPendingIcon>
           New Project
         </Link>
       </div>
